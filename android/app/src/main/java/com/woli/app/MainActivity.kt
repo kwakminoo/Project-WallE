@@ -1,5 +1,6 @@
 package com.woli.app
 
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -9,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -35,22 +38,43 @@ import com.woli.app.ui.theme.WoliBlack
 import com.woli.app.ui.theme.WoliTheme
 
 class MainActivity : ComponentActivity() {
+    private val routeState = mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        routeState.value = intent?.getStringExtra(EXTRA_ROUTE)
         setContent {
             WoliTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = WoliBlack) {
-                    WoliApp(activity = this)
+                    WoliApp(activity = this, startRoute = routeState.value)
                 }
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        routeState.value = intent.getStringExtra(EXTRA_ROUTE)
+    }
+
+    companion object {
+        const val EXTRA_ROUTE = "route"
+    }
 }
 
 @Composable
-fun WoliApp(activity: ComponentActivity) {
+fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
     val navController = rememberNavController()
+
+    LaunchedEffect(startRoute) {
+        val route = startRoute?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
+        navController.navigate(route) {
+            popUpTo(Routes.HOME) { inclusive = route == Routes.HOME }
+            launchSingleTop = true
+        }
+    }
 
     NavHost(
         navController = navController,

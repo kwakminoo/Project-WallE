@@ -29,12 +29,47 @@
 
 ---
 
+## 현 화면 상태
+
+에뮬레이터(Pixel_9a)에서 캡처한 **UI 껍데기** 화면입니다. BLE·타이머·센서 등 기능 연결 전 상태입니다.  
+원본 이미지는 [`docs/screenshots/`](docs/screenshots/)에 있습니다.
+
+### 세로 — 집중 전
+
+| 화면 | 미리보기 |
+|---|---|
+| 홈 | <img src="docs/screenshots/01_home.png" width="220" alt="홈" /> |
+| 통계 | <img src="docs/screenshots/02_stats.png" width="220" alt="통계" /> |
+| 미션 | <img src="docs/screenshots/03_missions.png" width="220" alt="미션" /> |
+| 설정 | <img src="docs/screenshots/04_settings.png" width="220" alt="설정" /> |
+| 집중 시간 설정 | <img src="docs/screenshots/05_focus_time.png" width="220" alt="집중 시간 설정" /> |
+| 월이 기기 연결 | <img src="docs/screenshots/06_device_connect.png" width="220" alt="월이 기기 연결" /> |
+| 중요 연락처 | <img src="docs/screenshots/07_important_contacts.png" width="220" alt="중요 연락처" /> |
+| 스마트폰 거치 안내 | <img src="docs/screenshots/08_mount_guide.png" width="220" alt="스마트폰 거치 안내" /> |
+| 화면 껍데기 갤러리 | <img src="docs/screenshots/09_shell_gallery.png" width="220" alt="화면 껍데기 갤러리" /> |
+
+### 집중 모드 · 이벤트
+
+| 화면 | 미리보기 |
+|---|---|
+| 집중 눈 화면 | <img src="docs/screenshots/10_focus_eyes.png" width="220" alt="집중 눈 화면" /> |
+| 남은 시간 표시 | <img src="docs/screenshots/11_remaining_time.png" width="220" alt="남은 시간 표시" /> |
+| 중요 연락 | <img src="docs/screenshots/12_important_call.png" width="220" alt="중요 연락" /> |
+| 손 접근 경고 | <img src="docs/screenshots/13_hand_warning.png" width="220" alt="손 접근 경고" /> |
+| 집중 완료 | <img src="docs/screenshots/14_focus_complete.png" width="220" alt="집중 완료" /> |
+| 중도 해제 확인 | <img src="docs/screenshots/15_quit_confirm.png" width="220" alt="중도 해제 확인" /> |
+| 리듬 미션 | <img src="docs/screenshots/16_rhythm_mission.png" width="220" alt="리듬 미션" /> |
+| 세션 리포트 | <img src="docs/screenshots/17_session_report.png" width="220" alt="세션 리포트" /> |
+
+---
+
 ## 저장소 구조
 
 ```text
 Project-WallE/
 ├── android/                 # Android 앱 (Compose UI 껍데기)
 ├── firmware/                # ESP32 PlatformIO 스켈레톤
+├── docs/screenshots/        # 현 화면 상태 캡처
 ├── 디지털_디톡스_로봇_월이_기획안.md
 ├── SW 예 상시나리오.png
 ├── HW 구상도.png
