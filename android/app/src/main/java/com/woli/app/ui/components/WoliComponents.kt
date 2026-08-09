@@ -249,9 +249,9 @@ fun WoliRobotMascot(modifier: Modifier = Modifier) {
 fun StatCard(
     title: String,
     value: String,
+    modifier: Modifier = Modifier,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
-    modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier

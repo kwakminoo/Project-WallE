@@ -12,12 +12,21 @@ object WoliNotificationCenter {
     val events: StateFlow<List<WoliNotificationEvent>> = _events.asStateFlow()
 
     fun add(event: WoliNotificationEvent) {
+        val removedIds = mutableListOf<String>()
         _events.update { current ->
-            (listOf(event) + current.filterNot { it.id == event.id }).take(MAX_EVENTS)
+            val next = (listOf(event) + current.filterNot { it.id == event.id }).take(MAX_EVENTS)
+            removedIds.clear()
+            current
+                .map { it.id }
+                .filterNot { id -> next.any { it.id == id } }
+                .forEach(removedIds::add)
+            next
         }
+        removedIds.forEach(WoliRemoteReplyActionStore::remove)
     }
 
     fun clear() {
         _events.value = emptyList()
+        WoliRemoteReplyActionStore.clearAll()
     }
 }

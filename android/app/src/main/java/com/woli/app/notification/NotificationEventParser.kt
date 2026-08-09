@@ -22,14 +22,14 @@ object NotificationEventParser {
                 ?: extras.getCharSequence(Notification.EXTRA_TEXT)
                 ?: extras.getCharSequence(Notification.EXTRA_SUB_TEXT),
         )
-        val canReply = notification.actions
-            ?.any { action -> !action.remoteInputs.isNullOrEmpty() }
-            ?: false
-
         if (title.isBlank() && preview.isBlank()) return null
 
+        val eventId = "${statusBarNotification.packageName}:${statusBarNotification.id}:${statusBarNotification.postTime}"
+        val replyAction = WoliRemoteReplyActionStore.registerReplyAction(eventId, notification)
+        val canReply = replyAction != null
+
         return WoliNotificationEvent(
-            id = "${statusBarNotification.packageName}:${statusBarNotification.id}:${statusBarNotification.postTime}",
+            id = eventId,
             packageName = statusBarNotification.packageName,
             appName = appNameFor(statusBarNotification.packageName, packageManager),
             title = title.ifBlank { appNameFor(statusBarNotification.packageName, packageManager) },
@@ -37,6 +37,7 @@ object NotificationEventParser {
             priority = WoliNotificationPolicy.priorityFor(notification.category, canReply),
             canReply = canReply,
             postedAtMillis = statusBarNotification.postTime,
+            replyAction = replyAction,
         )
     }
 

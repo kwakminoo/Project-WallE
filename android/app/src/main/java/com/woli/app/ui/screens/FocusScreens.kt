@@ -1,5 +1,9 @@
 package com.woli.app.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,8 +27,13 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -36,10 +45,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.woli.app.notification.WoliNotificationAccess
 import com.woli.app.notification.WoliNotificationCenter
 import com.woli.app.notification.WoliNotificationEvent
 import com.woli.app.notification.WoliNotificationPriority
+import com.woli.app.notification.WoliRemoteReplyActionStore
+import com.woli.app.notification.WoliReplySendResult
 import com.woli.app.ui.components.EyeMood
 import com.woli.app.ui.components.ShellHintBar
 import com.woli.app.ui.components.WoliEyes
@@ -52,6 +64,10 @@ import com.woli.app.ui.theme.WoliOrange
 import com.woli.app.ui.theme.WoliText
 import com.woli.app.ui.theme.WoliWarning
 import com.woli.app.ui.theme.WoliYellow
+import com.woli.app.voice.WoliAnnouncementFormatter
+import com.woli.app.voice.WoliReplyDraft
+import com.woli.app.voice.WoliSpeechRecognizer
+import com.woli.app.voice.WoliTtsSpeaker
 
 @Composable
 fun FocusEyesScreen(
@@ -66,6 +82,85 @@ fun FocusEyesScreen(
     val events by WoliNotificationCenter.events.collectAsState()
     val accessEnabled = WoliNotificationAccess.isEnabled(context)
     val latestEvent = events.firstOrNull()
+    val ttsSpeaker = remember(context) { WoliTtsSpeaker(context) }
+    val speechRecognizer = remember(context) { WoliSpeechRecognizer(context) }
+    var lastSpokenEventId by remember { mutableStateOf<String?>(null) }
+    var replyDraft by remember { mutableStateOf<WoliReplyDraft?>(null) }
+    var replyError by remember { mutableStateOf<String?>(null) }
+    var replySendResult by remember { mutableStateOf<WoliReplySendResult?>(null) }
+    var isListening by remember { mutableStateOf(false) }
+    var pendingReplyEvent by remember { mutableStateOf<WoliNotificationEvent?>(null) }
+    var microphonePermissionGranted by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO,
+            ) == PackageManager.PERMISSION_GRANTED,
+        )
+    }
+
+    fun beginVoiceReply(event: WoliNotificationEvent) {
+        if (!event.canReply) {
+            replyError = "이 알림은 답장을 지원하지 않습니다."
+            return
+        }
+
+        ttsSpeaker.stop()
+        replyDraft = null
+        replyError = null
+        replySendResult = null
+        isListening = true
+        speechRecognizer.startListening(
+            onResult = { spokenText ->
+                replyDraft = WoliReplyDraft(eventId = event.id, replyText = spokenText)
+                replyError = null
+                isListening = false
+            },
+            onError = { message ->
+                replyError = message
+                isListening = false
+            },
+        )
+    }
+
+    val microphonePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        microphonePermissionGranted = granted
+        val event = pendingReplyEvent
+        pendingReplyEvent = null
+
+        if (granted && event != null) {
+            beginVoiceReply(event)
+        } else if (!granted) {
+            replyError = "마이크 권한이 있어야 음성 답장을 만들 수 있습니다."
+        }
+    }
+
+    DisposableEffect(ttsSpeaker, speechRecognizer) {
+        onDispose {
+            ttsSpeaker.shutdown()
+            speechRecognizer.shutdown()
+        }
+    }
+
+    LaunchedEffect(accessEnabled, latestEvent?.id) {
+        if (latestEvent?.id != replyDraft?.eventId) {
+            replyDraft = null
+            replyError = null
+            replySendResult = null
+            isListening = false
+        }
+        if (!accessEnabled) return@LaunchedEffect
+
+        val event = latestEvent ?: return@LaunchedEffect
+        if (event.id == lastSpokenEventId) return@LaunchedEffect
+
+        val announcement = WoliAnnouncementFormatter.notificationAnnouncement(event)
+            ?: return@LaunchedEffect
+        ttsSpeaker.speak(announcement)
+        lastSpokenEventId = event.id
+    }
 
     LandscapeFocusScaffold {
         WoliEyes(
@@ -77,7 +172,45 @@ fun FocusEyesScreen(
         FocusNotificationPanel(
             accessEnabled = accessEnabled,
             latestEvent = latestEvent,
+            replyDraft = replyDraft,
+            replyError = replyError,
+            replySendResult = replySendResult,
+            isListening = isListening,
             onOpenSettings = onOpenNotificationSettings,
+            onStartVoiceReply = { event ->
+                if (microphonePermissionGranted) {
+                    beginVoiceReply(event)
+                } else {
+                    pendingReplyEvent = event
+                    microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                }
+            },
+            onConfirmDraft = {
+                val draft = replyDraft
+                if (draft == null) {
+                    replyError = "전송할 답장 초안이 없습니다."
+                } else {
+                    val result = WoliRemoteReplyActionStore.sendReply(
+                        context = context,
+                        eventId = draft.eventId,
+                        replyText = draft.replyText,
+                    )
+                    replySendResult = result
+                    if (result.isSuccess) {
+                        replyDraft = draft.copy(confirmed = true)
+                        replyError = null
+                    } else {
+                        replyError = result.userMessage()
+                    }
+                }
+            },
+            onCancelDraft = {
+                speechRecognizer.cancel()
+                replyDraft = null
+                replyError = null
+                replySendResult = null
+                isListening = false
+            },
         )
         Spacer(modifier = Modifier.height(14.dp))
         DemoChipRow(
@@ -96,7 +229,14 @@ fun FocusEyesScreen(
 private fun FocusNotificationPanel(
     accessEnabled: Boolean,
     latestEvent: WoliNotificationEvent?,
+    replyDraft: WoliReplyDraft?,
+    replyError: String?,
+    replySendResult: WoliReplySendResult?,
+    isListening: Boolean,
     onOpenSettings: () -> Unit,
+    onStartVoiceReply: (WoliNotificationEvent) -> Unit,
+    onConfirmDraft: () -> Unit,
+    onCancelDraft: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -171,6 +311,107 @@ private fun FocusNotificationPanel(
             color = if (latestEvent.canReply) WoliCyan else WoliMuted,
             fontSize = 12.sp,
         )
+        Text(
+            text = if (latestEvent.priority == WoliNotificationPriority.Normal) {
+                "음성 안내 제외"
+            } else {
+                "월이가 음성으로 안내합니다"
+            },
+            color = if (latestEvent.priority == WoliNotificationPriority.Normal) WoliMuted else WoliYellow,
+            fontSize = 12.sp,
+        )
+        if (latestEvent.canReply) {
+            Spacer(modifier = Modifier.height(8.dp))
+            VoiceReplySection(
+                event = latestEvent,
+                replyDraft = replyDraft?.takeIf { it.eventId == latestEvent.id },
+                replyError = replyError,
+                replySendResult = replySendResult,
+                isListening = isListening,
+                onStartVoiceReply = onStartVoiceReply,
+                onConfirmDraft = onConfirmDraft,
+                onCancelDraft = onCancelDraft,
+            )
+        }
+    }
+}
+
+@Composable
+private fun VoiceReplySection(
+    event: WoliNotificationEvent,
+    replyDraft: WoliReplyDraft?,
+    replyError: String?,
+    replySendResult: WoliReplySendResult?,
+    isListening: Boolean,
+    onStartVoiceReply: (WoliNotificationEvent) -> Unit,
+    onConfirmDraft: () -> Unit,
+    onCancelDraft: () -> Unit,
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        when {
+            replyDraft?.confirmed == true -> {
+                Text(
+                    text = replySendResult?.userMessage() ?: "답장 전송 요청을 완료했어요.",
+                    color = WoliCyan,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = "“${replyDraft.replyText}”",
+                    color = WoliText,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            replyDraft != null -> {
+                if (replySendResult != null && !replySendResult.isSuccess) {
+                    Text(
+                        text = replySendResult.userMessage(),
+                        color = WoliWarning,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
+                Text(
+                    text = "이렇게 답장할까요?",
+                    color = WoliYellow,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = "“${replyDraft.replyText}”",
+                    color = WoliText,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DemoChip("전송", onConfirmDraft)
+                    DemoChip("다시 말하기") { onStartVoiceReply(event) }
+                    DemoChip("취소", onCancelDraft)
+                }
+            }
+            else -> {
+                if (replyError != null) {
+                    Text(
+                        text = replyError,
+                        color = WoliWarning,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
+                DemoChip(
+                    label = if (isListening) "듣는 중…" else "음성 답장 말하기",
+                    onClick = { if (!isListening) onStartVoiceReply(event) },
+                )
+            }
+        }
     }
 }
 

@@ -292,19 +292,19 @@ fun FocusNotificationPermissionScreen(onBack: () -> Unit, onNext: () -> Unit) {
             Spacer(modifier = Modifier.height(14.dp))
             PermissionStatusRow(
                 title = "이번 단계",
-                value = "수신 감지 · 답장 가능 여부 판별",
+                value = "확인된 답장만 실제 전송",
                 active = true,
             )
             Spacer(modifier = Modifier.height(14.dp))
             PermissionStatusRow(
                 title = "다음 단계",
-                value = "TTS 안내 · 음성 답장 확인",
+                value = "전송 기록 · 실패 복구 · 앱별 검증",
                 active = false,
             )
         }
         Spacer(modifier = Modifier.height(18.dp))
         ShellHintBar(
-            text = "알림 내용은 현재 앱 메모리에서만 최근 이벤트로 보관합니다. 자동 답장은 아직 실행하지 않습니다.",
+            text = "답장 가능 알림만 전송할 수 있으며, 사용자가 확인한 초안만 상대 앱의 답장 액션으로 전달합니다.",
         )
         Spacer(modifier = Modifier.weight(1f))
         WoliSecondaryButton(
