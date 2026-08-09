@@ -8,6 +8,7 @@ object Routes {
     const val FOCUS_TIME = "focus_time"
     const val DEVICE_CONNECT = "device_connect"
     const val IMPORTANT_CONTACTS = "important_contacts"
+    const val FOCUS_NOTIFICATION_PERMISSION = "focus_notification_permission"
     const val MOUNT_GUIDE = "mount_guide"
     const val FOCUS_EYES = "focus_eyes"
     const val REMAINING_TIME = "remaining_time"

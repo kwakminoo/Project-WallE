@@ -23,6 +23,16 @@
         android:roundIcon="@drawable/ic_launcher_woli"
         android:supportsRtl="true"
         android:theme="@style/Theme.Woli">
+        <service
+            android:name=".notification.WoliNotificationListener"
+            android:exported="true"
+            android:label="@string/notification_listener_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

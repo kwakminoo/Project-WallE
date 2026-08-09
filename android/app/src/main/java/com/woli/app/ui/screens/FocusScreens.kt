@@ -23,15 +23,23 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.woli.app.notification.WoliNotificationAccess
+import com.woli.app.notification.WoliNotificationCenter
+import com.woli.app.notification.WoliNotificationEvent
+import com.woli.app.notification.WoliNotificationPriority
 import com.woli.app.ui.components.EyeMood
 import com.woli.app.ui.components.ShellHintBar
 import com.woli.app.ui.components.WoliEyes
@@ -52,10 +60,26 @@ fun FocusEyesScreen(
     onShowWarning: () -> Unit,
     onQuit: () -> Unit,
     onComplete: () -> Unit,
+    onOpenNotificationSettings: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val events by WoliNotificationCenter.events.collectAsState()
+    val accessEnabled = WoliNotificationAccess.isEnabled(context)
+    val latestEvent = events.firstOrNull()
+
     LandscapeFocusScaffold {
-        WoliEyes(mood = EyeMood.Idle, eyeSize = 88.dp, gap = 72.dp)
-        Spacer(modifier = Modifier.height(28.dp))
+        WoliEyes(
+            mood = if (latestEvent == null) EyeMood.Idle else EyeMood.Alert,
+            eyeSize = 88.dp,
+            gap = 72.dp,
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        FocusNotificationPanel(
+            accessEnabled = accessEnabled,
+            latestEvent = latestEvent,
+            onOpenSettings = onOpenNotificationSettings,
+        )
+        Spacer(modifier = Modifier.height(14.dp))
         DemoChipRow(
             chips = listOf(
                 "남은시간" to onShowRemaining,
@@ -65,6 +89,104 @@ fun FocusEyesScreen(
                 "해제" to onQuit,
             ),
         )
+    }
+}
+
+@Composable
+private fun FocusNotificationPanel(
+    accessEnabled: Boolean,
+    latestEvent: WoliNotificationEvent?,
+    onOpenSettings: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth(0.78f)
+            .background(Color(0xFF141414), RoundedCornerShape(16.dp))
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        if (!accessEnabled) {
+            Text(
+                text = "알림 접근 권한 필요",
+                color = WoliYellow,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "중요 알림을 감지하려면 설정에서 월이를 허용하세요.",
+                color = WoliMuted,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            DemoChip("설정 열기", onOpenSettings)
+            return@Column
+        }
+
+        if (latestEvent == null) {
+            Text(
+                text = "중요 알림 수신 대기 중",
+                color = WoliCyan,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = "집중 중 들어오는 알림을 월이가 분류합니다.",
+                color = WoliMuted,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+            )
+            return@Column
+        }
+
+        Text(
+            text = "${priorityLabel(latestEvent.priority)} · ${latestEvent.appName}",
+            color = priorityColor(latestEvent.priority),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = latestEvent.title,
+            color = WoliText,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = latestEvent.preview,
+            color = WoliMuted,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = if (latestEvent.canReply) "답장 가능 알림" else "읽기 전용 알림",
+            color = if (latestEvent.canReply) WoliCyan else WoliMuted,
+            fontSize = 12.sp,
+        )
+    }
+}
+
+private fun priorityLabel(priority: WoliNotificationPriority): String {
+    return when (priority) {
+        WoliNotificationPriority.Critical -> "긴급"
+        WoliNotificationPriority.Important -> "중요"
+        WoliNotificationPriority.Normal -> "일반"
+    }
+}
+
+private fun priorityColor(priority: WoliNotificationPriority): Color {
+    return when (priority) {
+        WoliNotificationPriority.Critical -> WoliWarning
+        WoliNotificationPriority.Important -> WoliYellow
+        WoliNotificationPriority.Normal -> WoliMuted
     }
 }
 

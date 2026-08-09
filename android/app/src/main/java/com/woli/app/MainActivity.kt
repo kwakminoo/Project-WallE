@@ -17,9 +17,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.woli.app.navigation.Routes
+import com.woli.app.notification.WoliNotificationAccess
 import com.woli.app.ui.screens.DeviceConnectScreen
 import com.woli.app.ui.screens.FocusCompleteScreen
 import com.woli.app.ui.screens.FocusEyesScreen
+import com.woli.app.ui.screens.FocusNotificationPermissionScreen
 import com.woli.app.ui.screens.FocusTimeSettingScreen
 import com.woli.app.ui.screens.HandWarningScreen
 import com.woli.app.ui.screens.HomeScreen
@@ -134,6 +136,13 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
             LockOrientation(activity, portrait = true)
             ImportantContactsScreen(
                 onBack = { navController.popBackStack() },
+                onNext = { navController.navigate(Routes.FOCUS_NOTIFICATION_PERMISSION) },
+            )
+        }
+        composable(Routes.FOCUS_NOTIFICATION_PERMISSION) {
+            LockOrientation(activity, portrait = true)
+            FocusNotificationPermissionScreen(
+                onBack = { navController.popBackStack() },
                 onNext = { navController.navigate(Routes.MOUNT_GUIDE) },
             )
         }
@@ -152,6 +161,9 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
                 onShowWarning = { navController.navigate(Routes.HAND_WARNING) },
                 onQuit = { navController.navigate(Routes.QUIT_CONFIRM) },
                 onComplete = { navController.navigate(Routes.FOCUS_COMPLETE) },
+                onOpenNotificationSettings = {
+                    activity.startActivity(WoliNotificationAccess.settingsIntent())
+                },
             )
         }
         composable(Routes.REMAINING_TIME) {

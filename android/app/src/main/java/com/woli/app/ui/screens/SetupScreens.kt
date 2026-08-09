@@ -35,10 +35,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.woli.app.notification.WoliNotificationAccess
 import com.woli.app.ui.components.ShellHintBar
 import com.woli.app.ui.components.WoliPrimaryButton
 import com.woli.app.ui.components.WoliSecondaryButton
@@ -258,6 +260,89 @@ fun ImportantContactsScreen(onBack: () -> Unit, onNext: () -> Unit) {
 }
 
 @Composable
+fun FocusNotificationPermissionScreen(onBack: () -> Unit, onNext: () -> Unit) {
+    val context = LocalContext.current
+    var accessEnabled by remember { mutableStateOf(WoliNotificationAccess.isEnabled(context)) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(WoliBlack)
+            .padding(20.dp),
+    ) {
+        BackTitle(title = "집중 알림 전달", onBack = onBack)
+        Text(
+            "중요 알림을 월이가 읽어주려면 Android 알림 접근 권한이 필요합니다.",
+            color = WoliMuted,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+            modifier = Modifier.padding(top = 8.dp, bottom = 22.dp),
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF1C1C1E), RoundedCornerShape(18.dp))
+                .padding(18.dp),
+        ) {
+            PermissionStatusRow(
+                title = "알림 접근",
+                value = if (accessEnabled) "허용됨" else "권한 필요",
+                active = accessEnabled,
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            PermissionStatusRow(
+                title = "이번 단계",
+                value = "수신 감지 · 답장 가능 여부 판별",
+                active = true,
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            PermissionStatusRow(
+                title = "다음 단계",
+                value = "TTS 안내 · 음성 답장 확인",
+                active = false,
+            )
+        }
+        Spacer(modifier = Modifier.height(18.dp))
+        ShellHintBar(
+            text = "알림 내용은 현재 앱 메모리에서만 최근 이벤트로 보관합니다. 자동 답장은 아직 실행하지 않습니다.",
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        WoliSecondaryButton(
+            text = "알림 접근 설정 열기",
+            onClick = {
+                runCatching { context.startActivity(WoliNotificationAccess.settingsIntent()) }
+            },
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        WoliSecondaryButton(
+            text = "상태 새로고침",
+            onClick = { accessEnabled = WoliNotificationAccess.isEnabled(context) },
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        WoliPrimaryButton(
+            text = if (accessEnabled) "다음" else "권한 없이 데모 계속",
+            onClick = onNext,
+        )
+    }
+}
+
+@Composable
+private fun PermissionStatusRow(title: String, value: String, active: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .background(if (active) WoliYellow else WoliMuted, CircleShape),
+        )
+        Spacer(modifier = Modifier.size(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, color = WoliText, fontWeight = FontWeight.SemiBold)
+            Text(value, color = WoliMuted, fontSize = 13.sp)
+        }
+    }
+}
+
+@Composable
 fun MountGuideScreen(onBack: () -> Unit, onStartFocus: () -> Unit) {
     Column(
         modifier = Modifier
@@ -327,6 +412,7 @@ fun ShellGalleryScreen(onBack: () -> Unit, onOpen: (String) -> Unit) {
         "focus_time" to "집중 시간 설정",
         "device_connect" to "기기 연결",
         "important_contacts" to "중요 연락처",
+        "focus_notification_permission" to "집중 알림 전달",
         "mount_guide" to "거치 안내",
         "focus_eyes" to "집중 눈 화면",
         "remaining_time" to "남은 시간 표시",
