@@ -46,11 +46,21 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.woli.app.call.WoliCallAccess
+import com.woli.app.call.WoliCallCenter
+import com.woli.app.call.WoliCallEvent
+import com.woli.app.call.WoliCallMonitor
+import com.woli.app.call.WoliCallMonitorStartResult
+import com.woli.app.call.WoliCallState
+import com.woli.app.call.WoliCallStateMapper
 import com.woli.app.notification.WoliNotificationAccess
 import com.woli.app.notification.WoliNotificationCenter
 import com.woli.app.notification.WoliNotificationEvent
 import com.woli.app.notification.WoliNotificationPriority
 import com.woli.app.notification.WoliRemoteReplyActionStore
+import com.woli.app.notification.WoliReplyHistoryEntry
+import com.woli.app.notification.WoliReplyHistoryResultType
+import com.woli.app.notification.WoliReplyHistoryStore
 import com.woli.app.notification.WoliReplySendResult
 import com.woli.app.ui.components.EyeMood
 import com.woli.app.ui.components.ShellHintBar
@@ -80,16 +90,27 @@ fun FocusEyesScreen(
 ) {
     val context = LocalContext.current
     val events by WoliNotificationCenter.events.collectAsState()
+    val currentCall by WoliCallCenter.current.collectAsState()
     val accessEnabled = WoliNotificationAccess.isEnabled(context)
     val latestEvent = events.firstOrNull()
     val ttsSpeaker = remember(context) { WoliTtsSpeaker(context) }
     val speechRecognizer = remember(context) { WoliSpeechRecognizer(context) }
+    val callMonitor = remember(context) {
+        WoliCallMonitor(context.applicationContext) { state ->
+            WoliCallCenter.updateState(state)
+        }
+    }
     var lastSpokenEventId by remember { mutableStateOf<String?>(null) }
+    var lastSpokenCallKey by remember { mutableStateOf<String?>(null) }
     var replyDraft by remember { mutableStateOf<WoliReplyDraft?>(null) }
     var replyError by remember { mutableStateOf<String?>(null) }
     var replySendResult by remember { mutableStateOf<WoliReplySendResult?>(null) }
     var isListening by remember { mutableStateOf(false) }
     var pendingReplyEvent by remember { mutableStateOf<WoliNotificationEvent?>(null) }
+    var dismissedCallId by remember { mutableStateOf<String?>(null) }
+    var callMonitorResult by remember {
+        mutableStateOf<WoliCallMonitorStartResult>(WoliCallMonitorStartResult.MissingPermission)
+    }
     var microphonePermissionGranted by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -97,6 +118,13 @@ fun FocusEyesScreen(
                 Manifest.permission.RECORD_AUDIO,
             ) == PackageManager.PERMISSION_GRANTED,
         )
+    }
+    var phonePermissionGranted by remember {
+        mutableStateOf(WoliCallAccess.isGranted(context))
+    }
+
+    LaunchedEffect(context) {
+        WoliReplyHistoryStore.load(context)
     }
 
     fun beginVoiceReply(event: WoliNotificationEvent) {
@@ -137,6 +165,15 @@ fun FocusEyesScreen(
         }
     }
 
+    val phonePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        phonePermissionGranted = granted
+        if (!granted) {
+            callMonitorResult = WoliCallMonitorStartResult.MissingPermission
+        }
+    }
+
     DisposableEffect(ttsSpeaker, speechRecognizer) {
         onDispose {
             ttsSpeaker.shutdown()
@@ -144,7 +181,30 @@ fun FocusEyesScreen(
         }
     }
 
-    LaunchedEffect(accessEnabled, latestEvent?.id) {
+    DisposableEffect(callMonitor, phonePermissionGranted) {
+        if (phonePermissionGranted) {
+            callMonitorResult = callMonitor.start()
+        } else {
+            callMonitorResult = WoliCallMonitorStartResult.MissingPermission
+        }
+
+        onDispose {
+            callMonitor.stop()
+        }
+    }
+
+    LaunchedEffect(currentCall?.id, currentCall?.state) {
+        val call = currentCall ?: return@LaunchedEffect
+        val announcement = WoliAnnouncementFormatter.callAnnouncement(call)
+            ?: return@LaunchedEffect
+        val callKey = "${call.id}_${call.state.name}"
+        if (callKey == lastSpokenCallKey) return@LaunchedEffect
+
+        ttsSpeaker.speak(announcement)
+        lastSpokenCallKey = callKey
+    }
+
+    LaunchedEffect(accessEnabled, latestEvent?.id, currentCall?.state) {
         if (latestEvent?.id != replyDraft?.eventId) {
             replyDraft = null
             replyError = null
@@ -154,6 +214,7 @@ fun FocusEyesScreen(
         if (!accessEnabled) return@LaunchedEffect
 
         val event = latestEvent ?: return@LaunchedEffect
+        if (currentCall?.state == WoliCallState.Ringing) return@LaunchedEffect
         if (event.id == lastSpokenEventId) return@LaunchedEffect
 
         val announcement = WoliAnnouncementFormatter.notificationAnnouncement(event)
@@ -163,12 +224,32 @@ fun FocusEyesScreen(
     }
 
     LandscapeFocusScaffold {
+        val visibleCall = currentCall?.takeIf { it.id != dismissedCallId }
         WoliEyes(
-            mood = if (latestEvent == null) EyeMood.Idle else EyeMood.Alert,
+            mood = when {
+                visibleCall?.state == WoliCallState.Ringing -> EyeMood.Happy
+                latestEvent != null -> EyeMood.Alert
+                else -> EyeMood.Idle
+            },
             eyeSize = 88.dp,
             gap = 72.dp,
         )
         Spacer(modifier = Modifier.height(16.dp))
+        if (!phonePermissionGranted || visibleCall != null || !callMonitorResult.isStarted) {
+            FocusCallPanel(
+                phonePermissionGranted = phonePermissionGranted,
+                callEvent = visibleCall,
+                monitorResult = callMonitorResult,
+                onRequestPermission = {
+                    phonePermissionLauncher.launch(Manifest.permission.READ_PHONE_STATE)
+                },
+                onOpenCallScreen = onShowCall,
+                onDismiss = {
+                    dismissedCallId = currentCall?.id
+                },
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+        }
         FocusNotificationPanel(
             accessEnabled = accessEnabled,
             latestEvent = latestEvent,
@@ -190,12 +271,21 @@ fun FocusEyesScreen(
                 if (draft == null) {
                     replyError = "전송할 답장 초안이 없습니다."
                 } else {
+                    val draftEvent = events.firstOrNull { it.id == draft.eventId }
                     val result = WoliRemoteReplyActionStore.sendReply(
                         context = context,
                         eventId = draft.eventId,
                         replyText = draft.replyText,
                     )
                     replySendResult = result
+                    if (draftEvent != null) {
+                        WoliReplyHistoryStore.record(
+                            context = context,
+                            event = draftEvent,
+                            replyText = draft.replyText,
+                            result = result,
+                        )
+                    }
                     if (result.isSuccess) {
                         replyDraft = draft.copy(confirmed = true)
                         replyError = null
@@ -337,6 +427,96 @@ private fun FocusNotificationPanel(
 }
 
 @Composable
+private fun FocusCallPanel(
+    phonePermissionGranted: Boolean,
+    callEvent: WoliCallEvent?,
+    monitorResult: WoliCallMonitorStartResult,
+    onRequestPermission: () -> Unit,
+    onOpenCallScreen: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth(0.78f)
+            .background(Color(0xFF141414), RoundedCornerShape(16.dp))
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        if (!phonePermissionGranted) {
+            Text(
+                text = "전화 감지 권한 필요",
+                color = WoliYellow,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "집중 중 걸려오는 전화를 음성으로 안내하려면 전화 상태 권한이 필요합니다.",
+                color = WoliMuted,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            DemoChip("권한 허용", onRequestPermission)
+            return@Column
+        }
+
+        if (callEvent == null) {
+            Text(
+                text = monitorResult.userMessage(),
+                color = if (monitorResult.isStarted) WoliCyan else WoliWarning,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+            )
+            return@Column
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Default.Call,
+                contentDescription = null,
+                tint = WoliYellow,
+                modifier = Modifier.size(24.dp),
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = WoliCallStateMapper.displayLabel(callEvent.state),
+                    color = if (callEvent.state == WoliCallState.Ringing) WoliYellow else WoliCyan,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = callEvent.callerLabel,
+                    color = WoliText,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = if (callEvent.state == WoliCallState.Ringing) {
+                "월이가 음성으로 안내했습니다. 실제 수락/거절은 휴대폰 통화 화면에서 진행하세요."
+            } else {
+                "통화 상태를 감지하고 집중 기록에 남깁니다."
+            },
+            color = WoliMuted,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DemoChip("전화 화면", onOpenCallScreen)
+            DemoChip("집중 계속", onDismiss)
+        }
+    }
+}
+
+@Composable
 private fun VoiceReplySection(
     event: WoliNotificationEvent,
     replyDraft: WoliReplyDraft?,
@@ -391,7 +571,14 @@ private fun VoiceReplySection(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DemoChip("전송", onConfirmDraft)
+                    DemoChip(
+                        label = if (replySendResult != null && !replySendResult.isSuccess) {
+                            "재전송"
+                        } else {
+                            "전송"
+                        },
+                        onClick = onConfirmDraft,
+                    )
                     DemoChip("다시 말하기") { onStartVoiceReply(event) }
                     DemoChip("취소", onCancelDraft)
                 }
@@ -459,25 +646,34 @@ fun ImportantCallScreen(
     onLater: () -> Unit,
     onContinue: () -> Unit,
 ) {
+    val callEvent by WoliCallCenter.current.collectAsState()
+    val title = callEvent?.callerLabel ?: WoliCallEvent.UNKNOWN_CALLER_LABEL
+    val status = callEvent?.state?.let(WoliCallStateMapper::displayLabel) ?: "전화 감지 대기"
+    val announcement = callEvent?.let { event ->
+        WoliAnnouncementFormatter.callAnnouncement(event)
+            ?: "통화 중에는 통화 음성을 방해하지 않도록 추가 안내하지 않습니다."
+    } ?: "전화가 오면 월이가 음성으로 안내합니다."
+
     LandscapeFocusScaffold {
         Row(verticalAlignment = Alignment.CenterVertically) {
             WoliEyes(mood = EyeMood.Happy, eyeSize = 70.dp, gap = 48.dp)
             Spacer(modifier = Modifier.width(20.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.Call, contentDescription = null, tint = WoliYellow, modifier = Modifier.size(28.dp))
-                Text("어머니", color = WoliText, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Text("전화가 왔어요", color = WoliMuted, fontSize = 13.sp)
+                Text(title, color = WoliText, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text(status, color = WoliMuted, fontSize = 13.sp)
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "TTS: \"어머니에게 전화가 왔어요.\"",
+            text = "TTS: \"$announcement\"",
             color = WoliCyan,
             fontSize = 13.sp,
+            textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(18.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            DemoChip("받기", onAnswer)
+            DemoChip("휴대폰에서 받기", onAnswer)
             DemoChip("나중에", onLater)
             DemoChip("집중 계속", onContinue)
         }
@@ -507,6 +703,8 @@ fun HandWarningScreen(onDismiss: () -> Unit) {
 
 @Composable
 fun FocusCompleteScreen(onReport: () -> Unit, onHome: () -> Unit) {
+    val callHistory by WoliCallCenter.history.collectAsState()
+
     LandscapeFocusScaffold {
         Box {
             ConfettiHints()
@@ -520,7 +718,7 @@ fun FocusCompleteScreen(onReport: () -> Unit, onHome: () -> Unit) {
         Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             MiniStat("집중 시간", "01:30:00")
             MiniStat("경고", "2회")
-            MiniStat("중요 연락", "1회")
+            MiniStat("전화 감지", "${callHistory.size}회")
         }
         Spacer(modifier = Modifier.height(18.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -594,6 +792,15 @@ fun RhythmMissionScreen(onSuccess: () -> Unit, onCancel: () -> Unit) {
 
 @Composable
 fun SessionReportScreen(onHome: () -> Unit) {
+    val context = LocalContext.current
+    LaunchedEffect(context) {
+        WoliReplyHistoryStore.load(context)
+    }
+    val replyHistory by WoliReplyHistoryStore.entries.collectAsState()
+    val callHistory by WoliCallCenter.history.collectAsState()
+    val sentReplyCount = replyHistory.count { it.resultType == WoliReplyHistoryResultType.Sent }
+    val failedReplyCount = replyHistory.count { it.resultType != WoliReplyHistoryResultType.Sent }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -608,16 +815,94 @@ fun SessionReportScreen(onHome: () -> Unit) {
             ReportCard("총 집중", "90분")
             ReportCard("중도 해제", "0회")
             ReportCard("손 접근", "2회")
-            ReportCard("중요 연락", "1회")
+            ReportCard("답장 성공", "${sentReplyCount}회")
         }
         Spacer(modifier = Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ReportCard("연속 집중", "6일")
             ReportCard("친밀도", "+12 XP")
+            ReportCard("답장 실패", "${failedReplyCount}회")
+            ReportCard("전화 감지", "${callHistory.size}회")
         }
+        Spacer(modifier = Modifier.height(14.dp))
+        ReplyHistorySummaryPanel(replyHistory.firstOrNull())
         Spacer(modifier = Modifier.height(24.dp))
         Box(modifier = Modifier.width(280.dp)) {
             WoliPrimaryButton(text = "홈으로 돌아가기", onClick = onHome)
+        }
+    }
+}
+
+@Composable
+private fun ReplyHistorySummaryPanel(latestEntry: WoliReplyHistoryEntry?) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth(0.78f)
+            .background(Color(0xFF1C1C1E), RoundedCornerShape(14.dp))
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = "최근 답장 기록",
+            color = WoliMuted,
+            fontSize = 12.sp,
+        )
+        if (latestEntry == null) {
+            Text(
+                text = "아직 전송 기록이 없습니다.",
+                color = WoliText,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+            )
+            return@Column
+        }
+
+        val statusText = if (latestEntry.resultType == WoliReplyHistoryResultType.Sent) {
+            "성공"
+        } else {
+            "확인 필요"
+        }
+        val statusColor = if (latestEntry.resultType == WoliReplyHistoryResultType.Sent) {
+            WoliCyan
+        } else {
+            WoliWarning
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "$statusText · ${latestEntry.appName}",
+            color = statusColor,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = latestEntry.title,
+            color = WoliText,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = "답장: ${latestEntry.replyText}",
+            color = WoliMuted,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (latestEntry.resultType != WoliReplyHistoryResultType.Sent) {
+            Text(
+                text = latestEntry.resultMessage,
+                color = WoliWarning,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

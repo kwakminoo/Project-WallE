@@ -1,5 +1,7 @@
 package com.woli.app.voice
 
+import com.woli.app.call.WoliCallEvent
+import com.woli.app.call.WoliCallState
 import com.woli.app.notification.WoliNotificationEvent
 import com.woli.app.notification.WoliNotificationPriority
 
@@ -24,6 +26,16 @@ object WoliAnnouncementFormatter {
             WoliNotificationPriority.Important ->
                 "${sender}에게 중요한 알림이 왔어요. ${preview} ${replyHint}".trim()
             WoliNotificationPriority.Normal -> null
+        }
+    }
+
+    fun callAnnouncement(event: WoliCallEvent): String? {
+        if (event.state != WoliCallState.Ringing) return null
+
+        return if (event.callerLabel == WoliCallEvent.UNKNOWN_CALLER_LABEL) {
+            "전화가 왔어요. 휴대폰 화면에서 받을 수 있습니다."
+        } else {
+            "${event.callerLabel}에게 전화가 왔어요. 휴대폰 화면에서 받을 수 있습니다."
         }
     }
 }

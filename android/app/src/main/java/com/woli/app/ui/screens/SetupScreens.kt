@@ -1,5 +1,9 @@
 package com.woli.app.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,6 +44,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import com.woli.app.call.WoliCallAccess
 import com.woli.app.notification.WoliNotificationAccess
 import com.woli.app.ui.components.ShellHintBar
 import com.woli.app.ui.components.WoliPrimaryButton
@@ -260,9 +266,21 @@ fun ImportantContactsScreen(onBack: () -> Unit, onNext: () -> Unit) {
 }
 
 @Composable
-fun FocusNotificationPermissionScreen(onBack: () -> Unit, onNext: () -> Unit) {
+fun FocusNotificationPermissionScreen(
+    onBack: () -> Unit,
+    onOpenDiagnostics: () -> Unit,
+    onNext: () -> Unit,
+) {
     val context = LocalContext.current
     var accessEnabled by remember { mutableStateOf(WoliNotificationAccess.isEnabled(context)) }
+    var phonePermissionGranted by remember {
+        mutableStateOf(WoliCallAccess.isGranted(context))
+    }
+    val phonePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        phonePermissionGranted = granted
+    }
 
     Column(
         modifier = Modifier
@@ -291,22 +309,37 @@ fun FocusNotificationPermissionScreen(onBack: () -> Unit, onNext: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(14.dp))
             PermissionStatusRow(
+                title = "전화 감지",
+                value = if (phonePermissionGranted) "허용됨" else "권한 필요",
+                active = phonePermissionGranted,
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            PermissionStatusRow(
                 title = "이번 단계",
-                value = "확인된 답장만 실제 전송",
+                value = "전화 수신 감지 · 음성 안내",
                 active = true,
             )
             Spacer(modifier = Modifier.height(14.dp))
             PermissionStatusRow(
                 title = "다음 단계",
-                value = "전송 기록 · 실패 복구 · 앱별 검증",
-                active = false,
+                value = "앱별 검증 대시보드",
+                active = true,
             )
         }
         Spacer(modifier = Modifier.height(18.dp))
         ShellHintBar(
-            text = "답장 가능 알림만 전송할 수 있으며, 사용자가 확인한 초안만 상대 앱의 답장 액션으로 전달합니다.",
+            text = "알림 답장은 사용자가 확인한 초안만 전송하고, 전화는 수신 상태만 감지해 음성으로 안내합니다.",
         )
         Spacer(modifier = Modifier.weight(1f))
+        if (!phonePermissionGranted) {
+            WoliSecondaryButton(
+                text = "전화 감지 권한 허용",
+                onClick = {
+                    phonePermissionLauncher.launch(Manifest.permission.READ_PHONE_STATE)
+                },
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+        }
         WoliSecondaryButton(
             text = "알림 접근 설정 열기",
             onClick = {
@@ -316,7 +349,18 @@ fun FocusNotificationPermissionScreen(onBack: () -> Unit, onNext: () -> Unit) {
         Spacer(modifier = Modifier.height(10.dp))
         WoliSecondaryButton(
             text = "상태 새로고침",
-            onClick = { accessEnabled = WoliNotificationAccess.isEnabled(context) },
+            onClick = {
+                accessEnabled = WoliNotificationAccess.isEnabled(context)
+                phonePermissionGranted = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.READ_PHONE_STATE,
+                ) == PackageManager.PERMISSION_GRANTED
+            },
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        WoliSecondaryButton(
+            text = "앱별 검증 열기",
+            onClick = onOpenDiagnostics,
         )
         Spacer(modifier = Modifier.height(10.dp))
         WoliPrimaryButton(
@@ -413,6 +457,7 @@ fun ShellGalleryScreen(onBack: () -> Unit, onOpen: (String) -> Unit) {
         "device_connect" to "기기 연결",
         "important_contacts" to "중요 연락처",
         "focus_notification_permission" to "집중 알림 전달",
+        "notification_diagnostics" to "앱별 알림 검증",
         "mount_guide" to "거치 안내",
         "focus_eyes" to "집중 눈 화면",
         "remaining_time" to "남은 시간 표시",

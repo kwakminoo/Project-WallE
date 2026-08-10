@@ -13,6 +13,7 @@ class ShellSmokeCheckTest {
             Routes.DEVICE_CONNECT,
             Routes.IMPORTANT_CONTACTS,
             Routes.FOCUS_NOTIFICATION_PERMISSION,
+            Routes.NOTIFICATION_DIAGNOSTICS,
             Routes.MOUNT_GUIDE,
             Routes.FOCUS_EYES,
             Routes.REMAINING_TIME,

@@ -29,6 +29,7 @@ import com.woli.app.ui.screens.ImportantCallScreen
 import com.woli.app.ui.screens.ImportantContactsScreen
 import com.woli.app.ui.screens.MissionsScreen
 import com.woli.app.ui.screens.MountGuideScreen
+import com.woli.app.ui.screens.NotificationDiagnosticsScreen
 import com.woli.app.ui.screens.QuitConfirmScreen
 import com.woli.app.ui.screens.RemainingTimeScreen
 import com.woli.app.ui.screens.RhythmMissionScreen
@@ -116,6 +117,7 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
                 onOpenGallery = { navController.navigate(Routes.SHELL_GALLERY) },
                 onOpenDevice = { navController.navigate(Routes.DEVICE_CONNECT) },
                 onOpenContacts = { navController.navigate(Routes.IMPORTANT_CONTACTS) },
+                onOpenNotificationDiagnostics = { navController.navigate(Routes.NOTIFICATION_DIAGNOSTICS) },
             )
         }
         composable(Routes.FOCUS_TIME) {
@@ -143,7 +145,17 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
             LockOrientation(activity, portrait = true)
             FocusNotificationPermissionScreen(
                 onBack = { navController.popBackStack() },
+                onOpenDiagnostics = { navController.navigate(Routes.NOTIFICATION_DIAGNOSTICS) },
                 onNext = { navController.navigate(Routes.MOUNT_GUIDE) },
+            )
+        }
+        composable(Routes.NOTIFICATION_DIAGNOSTICS) {
+            LockOrientation(activity, portrait = true)
+            NotificationDiagnosticsScreen(
+                onBack = { navController.popBackStack() },
+                onOpenNotificationSettings = {
+                    activity.startActivity(WoliNotificationAccess.settingsIntent())
+                },
             )
         }
         composable(Routes.MOUNT_GUIDE) {

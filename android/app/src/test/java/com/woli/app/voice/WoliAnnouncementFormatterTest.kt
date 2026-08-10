@@ -1,5 +1,7 @@
 package com.woli.app.voice
 
+import com.woli.app.call.WoliCallEvent
+import com.woli.app.call.WoliCallState
 import com.woli.app.notification.WoliNotificationEvent
 import com.woli.app.notification.WoliNotificationPriority
 import org.junit.Assert.assertEquals
@@ -35,6 +37,39 @@ class WoliAnnouncementFormatterTest {
         assertNull(
             WoliAnnouncementFormatter.notificationAnnouncement(
                 sampleEvent(priority = WoliNotificationPriority.Normal, canReply = false),
+            ),
+        )
+    }
+
+    @Test
+    fun ringingCallIsSpokenWithoutSensitiveNumber() {
+        val announcement = WoliAnnouncementFormatter.callAnnouncement(
+            WoliCallEvent(
+                id = "call-1",
+                state = WoliCallState.Ringing,
+                callerLabel = WoliCallEvent.UNKNOWN_CALLER_LABEL,
+                startedAtMillis = 0L,
+                updatedAtMillis = 0L,
+            ),
+        )
+
+        assertEquals(
+            "전화가 왔어요. 휴대폰 화면에서 받을 수 있습니다.",
+            announcement,
+        )
+    }
+
+    @Test
+    fun activeCallIsNotSpokenOverConversation() {
+        assertNull(
+            WoliAnnouncementFormatter.callAnnouncement(
+                WoliCallEvent(
+                    id = "call-1",
+                    state = WoliCallState.Active,
+                    callerLabel = WoliCallEvent.UNKNOWN_CALLER_LABEL,
+                    startedAtMillis = 0L,
+                    updatedAtMillis = 0L,
+                ),
             ),
         )
     }
