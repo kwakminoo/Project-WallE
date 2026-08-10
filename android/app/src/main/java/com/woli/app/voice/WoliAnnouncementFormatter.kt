@@ -9,7 +9,7 @@ object WoliAnnouncementFormatter {
     fun notificationAnnouncement(event: WoliNotificationEvent): String? {
         if (event.priority == WoliNotificationPriority.Normal) return null
 
-        val sender = event.title.ifBlank { event.appName }
+        val sender = event.importantContactLabel ?: event.title.ifBlank { event.appName }
         val preview = event.preview
             .takeIf { it.isNotBlank() && it != "내용 미리보기가 없는 알림입니다." }
             ?.let { "내용은, ${it}." }

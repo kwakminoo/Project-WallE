@@ -2,6 +2,7 @@ package com.woli.app.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -270,6 +271,7 @@ fun StatCard(
                     color = WoliYellow,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clickable(onClick = onAction),
                 )
             }
         }

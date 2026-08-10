@@ -1,5 +1,6 @@
 package com.woli.app.call
 
+import com.woli.app.contacts.WoliPhoneNumberNormalizer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,10 +18,11 @@ object WoliCallCenter {
     fun updateState(
         state: WoliCallState,
         nowMillis: Long = System.currentTimeMillis(),
+        callerInfo: WoliCallerInfo? = null,
     ) {
         when (state) {
-            WoliCallState.Ringing -> startOrUpdateCurrent(WoliCallState.Ringing, nowMillis)
-            WoliCallState.Active -> startOrUpdateCurrent(WoliCallState.Active, nowMillis)
+            WoliCallState.Ringing -> startOrUpdateCurrent(WoliCallState.Ringing, nowMillis, callerInfo)
+            WoliCallState.Active -> startOrUpdateCurrent(WoliCallState.Active, nowMillis, callerInfo)
             WoliCallState.Idle -> finishCurrent(nowMillis)
             WoliCallState.Unknown -> Unit
         }
@@ -31,20 +33,31 @@ object WoliCallCenter {
         _history.value = emptyList()
     }
 
-    private fun startOrUpdateCurrent(state: WoliCallState, nowMillis: Long) {
+    private fun startOrUpdateCurrent(
+        state: WoliCallState,
+        nowMillis: Long,
+        callerInfo: WoliCallerInfo?,
+    ) {
         val current = _current.value
         _current.value = if (current == null || current.state == WoliCallState.Idle) {
             WoliCallEvent(
                 id = "${nowMillis}_${state.name}",
                 state = state,
-                callerLabel = WoliCallEvent.UNKNOWN_CALLER_LABEL,
+                callerLabel = callerInfo?.label ?: WoliCallEvent.UNKNOWN_CALLER_LABEL,
                 startedAtMillis = nowMillis,
                 updatedAtMillis = nowMillis,
+                callerNumber = callerInfo?.phoneNumber,
+                isImportant = callerInfo?.isImportant ?: false,
             )
         } else {
             current.copy(
                 state = state,
                 updatedAtMillis = nowMillis,
+                callerLabel = callerInfo?.label ?: current.callerLabel,
+                callerNumber = callerInfo?.phoneNumber ?: current.callerNumber,
+                normalizedCallerNumber = callerInfo?.phoneNumber?.let(WoliPhoneNumberNormalizer::normalize)
+                    ?: current.normalizedCallerNumber,
+                isImportant = callerInfo?.isImportant ?: current.isImportant,
             )
         }
     }

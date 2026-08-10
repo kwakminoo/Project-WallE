@@ -64,7 +64,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.foundation:foundation")
 
-    // BLE / 로컬 저장 — 껍데기 단계에서 의존성만 포함 (기능 연결 없음)
+    // BLE, local persistence, foreground focus guard, and async app flows.
     implementation("androidx.datastore:datastore-preferences:1.1.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
 

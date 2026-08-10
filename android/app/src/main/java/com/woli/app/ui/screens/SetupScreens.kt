@@ -27,10 +27,13 @@ import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -45,7 +48,24 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.woli.app.call.WoliCallActionController
 import com.woli.app.call.WoliCallAccess
+import com.woli.app.contacts.WoliContactsAccess
+import com.woli.app.contacts.WoliImportantContact
+import com.woli.app.contacts.WoliImportantContactSource
+import com.woli.app.contacts.WoliImportantContactsStore
+import com.woli.app.contacts.WoliPhoneNumberNormalizer
+import com.woli.app.contacts.WoliSystemContactReader
+import com.woli.app.contacts.WoliSystemContactReadResult
+import com.woli.app.device.WoliBleDeviceClient
+import com.woli.app.device.WoliDeviceActionResult
+import com.woli.app.device.WoliDeviceCenter
+import com.woli.app.device.WoliDeviceProtocol
+import com.woli.app.device.WoliDeviceConnectionState
+import com.woli.app.device.WoliDiscoveredDevice
+import com.woli.app.focus.WoliFocusSessionConfig
+import com.woli.app.focus.WoliFocusSessionController
+import com.woli.app.focus.WoliFocusGuardService
 import com.woli.app.notification.WoliNotificationAccess
 import com.woli.app.ui.components.ShellHintBar
 import com.woli.app.ui.components.WoliPrimaryButton
@@ -61,10 +81,11 @@ fun FocusTimeSettingScreen(
     onBack: () -> Unit,
     onNext: () -> Unit,
 ) {
-    var hour by remember { mutableIntStateOf(1) }
-    var minute by remember { mutableIntStateOf(30) }
-    var allowImportantOnly by remember { mutableStateOf(true) }
-    var breakNotify by remember { mutableStateOf(false) }
+    val savedConfig by WoliFocusSessionController.config.collectAsState()
+    var hour by remember { mutableIntStateOf(savedConfig.durationMinutes / 60) }
+    var minute by remember { mutableIntStateOf(savedConfig.durationMinutes % 60) }
+    var allowImportantOnly by remember { mutableStateOf(savedConfig.allowImportantOnly) }
+    var breakNotify by remember { mutableStateOf(savedConfig.breakNotify) }
 
     Column(
         modifier = Modifier
@@ -122,9 +143,21 @@ fun FocusTimeSettingScreen(
             onCheckedChange = { breakNotify = it },
         )
         Spacer(modifier = Modifier.weight(1f))
-        ShellHintBar(text = "껍데기: 값은 화면에만 반영되며 BLE/타이머는 아직 연결되지 않습니다.")
+        ShellHintBar(text = "설정한 시간은 집중 세션 타이머와 리포트에 반영됩니다.")
         Spacer(modifier = Modifier.height(12.dp))
-        WoliPrimaryButton(text = "다음", onClick = onNext)
+        WoliPrimaryButton(
+            text = "다음",
+            onClick = {
+                WoliFocusSessionController.updateConfig(
+                    WoliFocusSessionConfig(
+                        durationMinutes = (hour * 60 + minute).coerceAtLeast(5),
+                        allowImportantOnly = allowImportantOnly,
+                        breakNotify = breakNotify,
+                    ),
+                )
+                onNext()
+            },
+        )
     }
 }
 
@@ -179,6 +212,44 @@ private fun OptionToggle(
 
 @Composable
 fun DeviceConnectScreen(onBack: () -> Unit, onNext: () -> Unit) {
+    val context = LocalContext.current
+    val bleClient = remember(context) { WoliBleDeviceClient(context) }
+    val deviceState by WoliDeviceCenter.state.collectAsState()
+    var hasBlePermissions by remember {
+        mutableStateOf(bleClient.hasScanPermission() && bleClient.hasConnectPermission())
+    }
+    var actionMessage by remember { mutableStateOf<String?>(deviceState.lastMessage) }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+    ) { permissions ->
+        hasBlePermissions = permissions.values.all { it }
+        actionMessage = if (hasBlePermissions) {
+            bleClient.startScan().userMessage()
+        } else {
+            "Bluetooth 권한이 있어야 월이 기기를 검색할 수 있습니다."
+        }
+    }
+
+    DisposableEffect(bleClient) {
+        onDispose { bleClient.stopScan() }
+    }
+
+    fun requestOrScan() {
+        if (bleClient.hasScanPermission() && bleClient.hasConnectPermission()) {
+            hasBlePermissions = true
+            actionMessage = bleClient.startScan().userMessage()
+        } else {
+            permissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.BLUETOOTH_SCAN,
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                ),
+            )
+        }
+    }
+
+    val devices = WoliDeviceCenter.allKnownDevices()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -187,32 +258,75 @@ fun DeviceConnectScreen(onBack: () -> Unit, onNext: () -> Unit) {
     ) {
         BackTitle(title = "월이 기기 연결", onBack = onBack)
         Spacer(modifier = Modifier.height(8.dp))
-        Text("BLE로 월이 로봇을 연결하세요.", color = WoliMuted, fontSize = 14.sp)
+        Text("BLE로 월이 로봇을 연결하거나 시뮬레이션으로 시연하세요.", color = WoliMuted, fontSize = 14.sp)
         Spacer(modifier = Modifier.height(24.dp))
-        DeviceRow(name = "WOLI-DT01", connected = true)
-        Spacer(modifier = Modifier.height(10.dp))
-        DeviceRow(name = "WOLI-Prototype", connected = false)
+        devices.forEach { device ->
+            DeviceRow(
+                device = device,
+                connected = deviceState.connectedDevice?.id == device.id,
+                onClick = {
+                    val result = if (device.simulated) {
+                        WoliDeviceCenter.connectSimulated()
+                        WoliDeviceActionResult.Started
+                    } else {
+                        bleClient.connect(device)
+                    }
+                    actionMessage = result.userMessage()
+                },
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+        if (actionMessage != null) {
+            Text(
+                text = actionMessage ?: "",
+                color = if (deviceState.connection == WoliDeviceConnectionState.Error) WoliYellow else WoliMuted,
+                fontSize = 12.sp,
+            )
+        }
         Spacer(modifier = Modifier.weight(1f))
-        WoliSecondaryButton(text = "다시 검색", onClick = {})
+        WoliSecondaryButton(
+            text = if (hasBlePermissions) "다시 검색" else "Bluetooth 권한 허용",
+            onClick = ::requestOrScan,
+        )
         Spacer(modifier = Modifier.height(10.dp))
-        WoliPrimaryButton(text = "다음", onClick = onNext)
+        WoliPrimaryButton(
+            text = if (deviceState.isConnected) "다음" else "시뮬레이션 연결 후 다음",
+            onClick = {
+                if (!deviceState.isConnected) WoliDeviceCenter.connectSimulated()
+                onNext()
+            },
+        )
     }
 }
 
 @Composable
-private fun DeviceRow(name: String, connected: Boolean) {
+private fun DeviceRow(
+    device: WoliDiscoveredDevice,
+    connected: Boolean,
+    onClick: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color(0xFF1C1C1E), RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Icons.Default.Bluetooth, contentDescription = null, tint = WoliCyan)
         Spacer(modifier = Modifier.size(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(name, color = WoliText, fontWeight = FontWeight.SemiBold)
-            Text(if (connected) "연결됨" else "사용 가능", color = WoliMuted, fontSize = 12.sp)
+            Text(device.name, color = WoliText, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = when {
+                    connected -> "연결됨"
+                    device.simulated -> "시뮬레이션"
+                    device.rssi != null -> "RSSI ${device.rssi}"
+                    else -> "사용 가능"
+                },
+                color = WoliMuted,
+                fontSize = 12.sp,
+            )
         }
         if (connected) {
             Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF30D158))
@@ -222,46 +336,263 @@ private fun DeviceRow(name: String, connected: Boolean) {
 
 @Composable
 fun ImportantContactsScreen(onBack: () -> Unit, onNext: () -> Unit) {
-    val contacts = listOf("어머니", "아버지", "학교 담임", "직장 동료")
-    var selected by remember { mutableStateOf(setOf("어머니", "아버지")) }
+    val context = LocalContext.current
+    val importantContacts by WoliImportantContactsStore.contacts.collectAsState()
+    var deviceContacts by remember { mutableStateOf(emptyList<com.woli.app.contacts.WoliSystemContact>()) }
+    var manualName by remember { mutableStateOf("") }
+    var manualPhone by remember { mutableStateOf("") }
+    var hasContactsPermission by remember { mutableStateOf(WoliContactsAccess.canReadContacts(context)) }
+    var actionMessage by remember { mutableStateOf<String?>(null) }
+    val contactsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        hasContactsPermission = granted
+        actionMessage = if (granted) {
+            when (val result = WoliSystemContactReader.readPhoneContacts(context)) {
+                is WoliSystemContactReadResult.Success -> {
+                    deviceContacts = result.contacts
+                    result.userMessage()
+                }
+                WoliSystemContactReadResult.MissingPermission -> result.userMessage()
+                is WoliSystemContactReadResult.Failed -> result.userMessage()
+            }
+        } else {
+            "연락처 권한이 없어 수동 입력만 사용할 수 있습니다."
+        }
+    }
+
+    fun refreshDeviceContacts() {
+        when (val result = WoliSystemContactReader.readPhoneContacts(context)) {
+            is WoliSystemContactReadResult.Success -> {
+                deviceContacts = result.contacts
+                actionMessage = result.userMessage()
+            }
+            WoliSystemContactReadResult.MissingPermission -> {
+                actionMessage = result.userMessage()
+            }
+            is WoliSystemContactReadResult.Failed -> {
+                actionMessage = result.userMessage()
+            }
+        }
+    }
+
+    fun addManualContact() {
+        val normalizedPhone = WoliPhoneNumberNormalizer.normalize(manualPhone)
+        if (manualName.isBlank() && normalizedPhone.isBlank()) {
+            actionMessage = "이름 또는 전화번호를 입력하세요."
+            return
+        }
+
+        WoliImportantContactsStore.upsert(
+            context = context,
+            contact = WoliImportantContact(
+                displayName = manualName.ifBlank { WoliPhoneNumberNormalizer.mask(manualPhone) },
+                phoneNumber = manualPhone,
+                normalizedPhoneNumber = normalizedPhone,
+                source = WoliImportantContactSource.Manual,
+            ),
+        )
+        manualName = ""
+        manualPhone = ""
+        actionMessage = "중요 연락처가 저장되었습니다."
+    }
+
+    DisposableEffect(context) {
+        WoliImportantContactsStore.load(context)
+        onDispose { }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(WoliBlack)
             .padding(20.dp),
-    ) {
+        ) {
         BackTitle(title = "중요 연락처", onBack = onBack)
-        Text("집중 중에도 받을 연락을 선택하세요.", color = WoliMuted, fontSize = 14.sp)
-        Spacer(modifier = Modifier.height(20.dp))
-        contacts.forEach { name ->
-            val on = name in selected
-            Row(
+        Text("집중 중 월이가 우선 안내할 연락처를 저장하세요.", color = WoliMuted, fontSize = 14.sp)
+        Spacer(modifier = Modifier.height(16.dp))
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 10.dp)
-                    .background(Color(0xFF1C1C1E), RoundedCornerShape(14.dp))
-                    .clickable {
-                        selected = if (on) selected - name else selected + name
-                    }
+                    .background(Color(0xFF1C1C1E), RoundedCornerShape(18.dp))
                     .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(if (on) WoliYellow else Color(0xFF2C2C2E), CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(name.take(1), color = if (on) WoliBlack else WoliText, fontWeight = FontWeight.Bold)
+                Text("수동 추가", color = WoliText, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = manualName,
+                    onValueChange = { manualName = it },
+                    label = { Text("이름") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = manualPhone,
+                    onValueChange = { manualPhone = it },
+                    label = { Text("전화번호") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                WoliSecondaryButton(text = "중요 연락처 추가", onClick = ::addManualContact)
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF1C1C1E), RoundedCornerShape(18.dp))
+                    .padding(16.dp),
+            ) {
+                Text("단말 연락처", color = WoliText, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                if (hasContactsPermission) {
+                    WoliSecondaryButton(text = "연락처 불러오기", onClick = ::refreshDeviceContacts)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    deviceContacts.take(8).forEach { contact ->
+                        ContactImportRow(
+                            name = contact.displayName,
+                            phone = WoliPhoneNumberNormalizer.mask(contact.phoneNumber),
+                            onAdd = {
+                                WoliImportantContactsStore.upsert(
+                                    context = context,
+                                    contact = WoliImportantContact(
+                                        id = "device_${contact.normalizedPhoneNumber}",
+                                        displayName = contact.displayName,
+                                        phoneNumber = contact.phoneNumber,
+                                        normalizedPhoneNumber = contact.normalizedPhoneNumber,
+                                        source = WoliImportantContactSource.Device,
+                                    ),
+                                )
+                                actionMessage = "${contact.displayName} 연락처를 추가했습니다."
+                            },
+                        )
+                    }
+                } else {
+                    Text(
+                        "연락처 권한을 허용하면 단말 연락처에서 바로 추가할 수 있습니다.",
+                        color = WoliMuted,
+                        fontSize = 12.sp,
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    WoliSecondaryButton(
+                        text = "연락처 권한 허용",
+                        onClick = { contactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS) },
+                    )
                 }
-                Spacer(modifier = Modifier.size(12.dp))
-                Text(name, color = WoliText, modifier = Modifier.weight(1f))
-                Text(if (on) "허용" else "차단", color = if (on) WoliCyan else WoliMuted, fontSize = 13.sp)
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+            Text("저장된 중요 연락처", color = WoliText, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
+            importantContacts.forEach { contact ->
+                ImportantContactRow(
+                    contact = contact,
+                    onToggle = { WoliImportantContactsStore.toggleEnabled(context, contact.id) },
+                    onRemove = { WoliImportantContactsStore.remove(context, contact.id) },
+                )
+            }
+            if (importantContacts.isEmpty()) {
+                Text("아직 저장된 연락처가 없습니다.", color = WoliMuted, fontSize = 13.sp)
+            }
+            actionMessage?.let { message ->
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(message, color = WoliCyan, fontSize = 12.sp)
             }
         }
-        Spacer(modifier = Modifier.weight(1f))
-        WoliPrimaryButton(text = "다음", onClick = onNext)
+        Spacer(modifier = Modifier.height(12.dp))
+        WoliPrimaryButton(text = "저장하고 다음", onClick = onNext)
+    }
+}
+
+@Composable
+private fun ImportantContactRow(
+    contact: WoliImportantContact,
+    onToggle: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 10.dp)
+            .background(Color(0xFF1C1C1E), RoundedCornerShape(14.dp))
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(if (contact.enabled) WoliYellow else Color(0xFF2C2C2E), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                contact.displayName.take(1).ifBlank { "?" },
+                color = if (contact.enabled) WoliBlack else WoliText,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        Spacer(modifier = Modifier.size(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(contact.displayName, color = WoliText)
+            Text(
+                text = contact.phoneNumber.ifBlank { contact.source.displayLabel() },
+                color = WoliMuted,
+                fontSize = 12.sp,
+            )
+        }
+        Switch(
+            checked = contact.enabled,
+            onCheckedChange = { onToggle() },
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = WoliBlack,
+                checkedTrackColor = WoliYellow,
+            ),
+        )
+        Spacer(modifier = Modifier.size(8.dp))
+        Text(
+            text = "삭제",
+            color = WoliMuted,
+            fontSize = 12.sp,
+            modifier = Modifier.clickable(onClick = onRemove),
+        )
+    }
+}
+
+@Composable
+private fun ContactImportRow(
+    name: String,
+    phone: String,
+    onAdd: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(name, color = WoliText, fontSize = 14.sp)
+            Text(phone, color = WoliMuted, fontSize = 12.sp)
+        }
+        Text(
+            text = "추가",
+            color = WoliCyan,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.clickable(onClick = onAdd),
+        )
+    }
+}
+
+private fun WoliImportantContactSource.displayLabel(): String {
+    return when (this) {
+        WoliImportantContactSource.Default -> "기본 연락처"
+        WoliImportantContactSource.Device -> "단말 연락처"
+        WoliImportantContactSource.Manual -> "수동 입력"
     }
 }
 
@@ -276,10 +607,34 @@ fun FocusNotificationPermissionScreen(
     var phonePermissionGranted by remember {
         mutableStateOf(WoliCallAccess.isGranted(context))
     }
+    var contactPermissionGranted by remember {
+        mutableStateOf(WoliContactsAccess.canReadContacts(context))
+    }
+    var callerIdPermissionGranted by remember {
+        mutableStateOf(WoliCallAccess.canReadCallerId(context))
+    }
+    var callControlGranted by remember {
+        mutableStateOf(WoliCallActionController.canControlCalls(context))
+    }
     val phonePermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
     ) { granted ->
         phonePermissionGranted = granted
+    }
+    val contactPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        contactPermissionGranted = granted
+    }
+    val callerIdPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        callerIdPermissionGranted = granted
+    }
+    val callControlPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        callControlGranted = granted
     }
 
     Column(
@@ -315,20 +670,38 @@ fun FocusNotificationPermissionScreen(
             )
             Spacer(modifier = Modifier.height(14.dp))
             PermissionStatusRow(
-                title = "이번 단계",
-                value = "전화 수신 감지 · 음성 안내",
+                title = "연락처 읽기",
+                value = if (contactPermissionGranted) "허용됨" else "중요 연락처 선택 권한",
+                active = contactPermissionGranted,
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            PermissionStatusRow(
+                title = "발신자 식별",
+                value = if (callerIdPermissionGranted) "허용됨" else "선택 권한",
+                active = callerIdPermissionGranted,
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            PermissionStatusRow(
+                title = "전화 제어",
+                value = if (callControlGranted) "허용됨" else "선택 권한",
+                active = callControlGranted,
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            PermissionStatusRow(
+                title = "음성 조작",
+                value = "답장 · 보내기 · 취소 · 전화 제어 명령",
                 active = true,
             )
             Spacer(modifier = Modifier.height(14.dp))
             PermissionStatusRow(
-                title = "다음 단계",
-                value = "앱별 검증 대시보드",
+                title = "검증",
+                value = "앱별 답장 성공 이력 대시보드",
                 active = true,
             )
         }
         Spacer(modifier = Modifier.height(18.dp))
         ShellHintBar(
-            text = "알림 답장은 사용자가 확인한 초안만 전송하고, 전화는 수신 상태만 감지해 음성으로 안내합니다.",
+            text = "알림·전화는 저장된 중요 연락처와 우선 매칭하고, 음성 명령으로 답장 전송과 전화 제어를 시도합니다.",
         )
         Spacer(modifier = Modifier.weight(1f))
         if (!phonePermissionGranted) {
@@ -336,6 +709,33 @@ fun FocusNotificationPermissionScreen(
                 text = "전화 감지 권한 허용",
                 onClick = {
                     phonePermissionLauncher.launch(Manifest.permission.READ_PHONE_STATE)
+                },
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+        if (!contactPermissionGranted) {
+            WoliSecondaryButton(
+                text = "연락처 권한 허용",
+                onClick = {
+                    contactPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+                },
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+        if (!callerIdPermissionGranted) {
+            WoliSecondaryButton(
+                text = "발신자 식별 권한 허용",
+                onClick = {
+                    callerIdPermissionLauncher.launch(Manifest.permission.READ_CALL_LOG)
+                },
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+        if (!callControlGranted) {
+            WoliSecondaryButton(
+                text = "전화 제어 권한 허용",
+                onClick = {
+                    callControlPermissionLauncher.launch(Manifest.permission.ANSWER_PHONE_CALLS)
                 },
             )
             Spacer(modifier = Modifier.height(10.dp))
@@ -355,6 +755,18 @@ fun FocusNotificationPermissionScreen(
                     context,
                     Manifest.permission.READ_PHONE_STATE,
                 ) == PackageManager.PERMISSION_GRANTED
+                contactPermissionGranted = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.READ_CONTACTS,
+                ) == PackageManager.PERMISSION_GRANTED
+                callerIdPermissionGranted = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.READ_CALL_LOG,
+                ) == PackageManager.PERMISSION_GRANTED
+                callControlGranted = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.ANSWER_PHONE_CALLS,
+                ) == PackageManager.PERMISSION_GRANTED
             },
         )
         Spacer(modifier = Modifier.height(10.dp))
@@ -364,7 +776,7 @@ fun FocusNotificationPermissionScreen(
         )
         Spacer(modifier = Modifier.height(10.dp))
         WoliPrimaryButton(
-            text = if (accessEnabled) "다음" else "권한 없이 데모 계속",
+            text = if (accessEnabled) "다음" else "권한 없이 계속",
             onClick = onNext,
         )
     }
@@ -388,6 +800,13 @@ private fun PermissionStatusRow(title: String, value: String, active: Boolean) {
 
 @Composable
 fun MountGuideScreen(onBack: () -> Unit, onStartFocus: () -> Unit) {
+    val context = LocalContext.current
+    val bleClient = remember(context) { WoliBleDeviceClient(context) }
+    val deviceState by WoliDeviceCenter.state.collectAsState()
+    var actionMessage by remember { mutableStateOf(deviceState.lastMessage) }
+    var lockAngle by remember { mutableIntStateOf(90) }
+    var unlockAngle by remember { mutableIntStateOf(10) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -427,10 +846,94 @@ fun MountGuideScreen(onBack: () -> Unit, onStartFocus: () -> Unit) {
             textAlign = TextAlign.Center,
             lineHeight = 20.sp,
         )
-        Spacer(modifier = Modifier.weight(1f))
-        ShellHintBar(text = "껍데기: 거치 감지/서보 잠금은 아직 미연결입니다.")
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            text = "거치 ${if (deviceState.isMounted) "확인" else "대기"} · 잠금 ${if (deviceState.isLocked) "작동" else "해제"}",
+            color = if (deviceState.isMounted && deviceState.isLocked) WoliCyan else WoliMuted,
+            fontSize = 13.sp,
+        )
         Spacer(modifier = Modifier.height(12.dp))
-        WoliPrimaryButton(text = "집중 모드 미리보기", onClick = onStartFocus)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF1C1C1E), RoundedCornerShape(16.dp))
+                .padding(14.dp),
+        ) {
+            Text("서보 캘리브레이션", color = WoliText, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
+            CalibrationControlRow(
+                label = "잠금 각도",
+                value = lockAngle,
+                onMinus = { lockAngle = (lockAngle - 5).coerceAtLeast(0) },
+                onPlus = { lockAngle = (lockAngle + 5).coerceAtMost(180) },
+                onSend = {
+                    val result = bleClient.sendCommand(WoliDeviceProtocol.commandCalibrateLock(lockAngle))
+                    actionMessage = result.userMessage()
+                },
+            )
+            CalibrationControlRow(
+                label = "해제 각도",
+                value = unlockAngle,
+                onMinus = { unlockAngle = (unlockAngle - 5).coerceAtLeast(0) },
+                onPlus = { unlockAngle = (unlockAngle + 5).coerceAtMost(180) },
+                onSend = {
+                    val result = bleClient.sendCommand(WoliDeviceProtocol.commandCalibrateUnlock(unlockAngle))
+                    actionMessage = result.userMessage()
+                },
+            )
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        ShellHintBar(text = actionMessage)
+        Spacer(modifier = Modifier.height(12.dp))
+        WoliSecondaryButton(
+            text = "거치 확인 및 잠금",
+            onClick = {
+                WoliDeviceCenter.setMounted(true)
+                val result = bleClient.sendCommand(WoliDeviceProtocol.COMMAND_LOCK)
+                if (result.isSuccess) WoliDeviceCenter.setLocked(true)
+                actionMessage = result.userMessage()
+            },
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        WoliPrimaryButton(
+            text = "집중 모드 시작",
+            onClick = {
+                WoliDeviceCenter.setMounted(true)
+                WoliDeviceCenter.setLocked(true)
+                bleClient.sendCommand(WoliDeviceProtocol.COMMAND_START)
+                WoliFocusGuardService.start(context)
+                onStartFocus()
+            },
+        )
+    }
+}
+
+@Composable
+private fun CalibrationControlRow(
+    label: String,
+    value: Int,
+    onMinus: () -> Unit,
+    onPlus: () -> Unit,
+    onSend: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(label, color = WoliMuted, fontSize = 12.sp, modifier = Modifier.weight(1f))
+        Text("−", color = WoliYellow, fontSize = 22.sp, modifier = Modifier.clickable(onClick = onMinus))
+        Text("${value}°", color = WoliText, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text("+", color = WoliYellow, fontSize = 20.sp, modifier = Modifier.clickable(onClick = onPlus))
+        Text(
+            "전송",
+            color = WoliCyan,
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp,
+            modifier = Modifier.clickable(onClick = onSend),
+        )
     }
 }
 
@@ -474,7 +977,7 @@ fun ShellGalleryScreen(onBack: () -> Unit, onOpen: (String) -> Unit) {
             .background(WoliBlack)
             .padding(20.dp),
     ) {
-        BackTitle(title = "화면 껍데기 갤러리", onBack = onBack)
+        BackTitle(title = "화면 상태 갤러리", onBack = onBack)
         Spacer(modifier = Modifier.height(8.dp))
         Text("SW 예상 시나리오 화면을 개별 확인합니다.", color = WoliMuted, fontSize = 13.sp)
         Spacer(modifier = Modifier.height(16.dp))

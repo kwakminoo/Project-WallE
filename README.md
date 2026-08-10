@@ -15,14 +15,14 @@
 | 앱 | Android (Kotlin + Jetpack Compose) |
 | 펌웨어 | ESP32 (Arduino / PlatformIO, NimBLE) |
 | 통신 | BLE (Bluetooth Low Energy) |
-| 현재 단계 | **UI 껍데기** — 화면 흐름만 구현, BLE·타이머·센서 기능 미연결 |
+| 현재 단계 | **1차 기능 완성 단계** — 중요 연락처, 음성 명령, 백그라운드 집중 보호, BLE 잠금/캘리브레이션까지 구현 |
 
 ### 핵심 아이디어
 
 1. 앱에서 집중 시간·중요 연락처를 설정한다.
 2. 스마트폰을 월이 머리 거치대에 **가로**로 올린다.
 3. BLE 연결 후 물리적 잠금이 작동하고, 화면은 **눈만 보이는 집중 모드**가 된다.
-4. 10분 단위로 남은 시간을 잠깐 표시하고, 중요 연락·손 접근 시에만 표정/TTS로 안내한다.
+4. 중요 연락·손 접근 시에만 표정/TTS로 안내하고, 음성으로 답장/전화 제어를 시도한다.
 5. 중도 해제 시 리듬 미션 등 마찰 장치를 거친다.
 
 자세한 기획은 루트의 `디지털_디톡스_로봇_월이_기획안.md`와 `SW 예 상시나리오.png`를 참고하세요.
@@ -31,7 +31,7 @@
 
 ## 현 화면 상태
 
-에뮬레이터(Pixel_9a)에서 캡처한 **UI 껍데기** 화면입니다. BLE·타이머·센서 등 기능 연결 전 상태입니다.  
+에뮬레이터(Pixel_9a)에서 캡처한 초기 화면입니다. 현재 코드는 캡처 이후 알림/답장/전화 감지/BLE/타이머 기능이 추가된 상태입니다.
 원본 이미지는 [`docs/screenshots/`](docs/screenshots/)에 있습니다.
 
 ### 세로 — 집중 전
@@ -46,7 +46,7 @@
 | 월이 기기 연결 | <img src="docs/screenshots/06_device_connect.png" width="220" alt="월이 기기 연결" /> |
 | 중요 연락처 | <img src="docs/screenshots/07_important_contacts.png" width="220" alt="중요 연락처" /> |
 | 스마트폰 거치 안내 | <img src="docs/screenshots/08_mount_guide.png" width="220" alt="스마트폰 거치 안내" /> |
-| 화면 껍데기 갤러리 | <img src="docs/screenshots/09_shell_gallery.png" width="220" alt="화면 껍데기 갤러리" /> |
+| 화면 상태 갤러리 | <img src="docs/screenshots/09_shell_gallery.png" width="220" alt="화면 상태 갤러리" /> |
 
 ### 집중 모드 · 이벤트
 
@@ -67,8 +67,8 @@
 
 ```text
 Project-WallE/
-├── android/                 # Android 앱 (Compose UI 껍데기)
-├── firmware/                # ESP32 PlatformIO 스켈레톤
+├── android/                 # Android 앱 (Compose + 알림/전화/BLE/세션 로직)
+├── firmware/                # ESP32 PlatformIO BLE GATT 펌웨어
 ├── docs/screenshots/        # 현 화면 상태 캡처
 ├── 디지털_디톡스_로봇_월이_기획안.md
 ├── SW 예 상시나리오.png
@@ -126,9 +126,9 @@ sdk.dir=/Users/<YOU>/Library/Android/sdk
 | UI | Jetpack Compose BOM, Material3, Material Icons |
 | 네비게이션 | `androidx.navigation:navigation-compose` |
 | 생명주기 | `lifecycle-runtime-ktx`, `lifecycle-viewmodel-compose` |
-| 로컬 저장(예정) | `datastore-preferences` |
+| 로컬 저장 | SharedPreferences 기반 집중 세션, 중요 연락처, 답장 이력 |
 | 비동기 | `kotlinx-coroutines-android` |
-| BLE 권한 | Manifest에 선언 (구현은 이후) |
+| BLE | Android BLE scan/connect + WOLI GATT command/status/calibration |
 
 설치/동기화:
 
@@ -145,29 +145,19 @@ Android Studio를 쓰는 경우:
 2. Gradle Sync 완료 대기
 3. 에뮬레이터 또는 실기기에서 `app` Run
 
-#### 구현된 UI 껍데기 화면
+#### 구현된 앱 기능
 
-세로(집중 전)
-
-- 홈 / 통계 / 미션 / 설정
-- 집중 시간 설정
-- 월이 기기 연결
-- 중요 연락처
-- 스마트폰 거치 안내
-- 화면 껍데기 갤러리 (설정에서 진입)
-
-가로(집중 모드)
-
-- 기본 눈 화면
-- 남은 시간 잠깐 표시
-- 중요 연락
-- 손 접근 경고
-- 집중 완료
-- 중도 해제 확인
-- 리듬 미션
-- 세션 리포트
-
-집중 눈 화면 하단의 데모 칩으로 가로 화면 상태를 오갈 수 있습니다.
+- 집중 시간 설정과 실제 세션 타이머
+- 중요 연락처 수동 저장, 단말 연락처 불러오기, 이름/번호 기반 중요도 매칭
+- Android 알림 접근 기반 중요 알림 감지/TTS
+- 답장 가능한 알림의 음성 인식 초안 생성, 음성 명령, RemoteInput 전송
+- 답장 전송 이력 저장과 앱별 검증 대시보드
+- 전화 수신 상태 감지, 발신자 best-effort 식별, TTS 안내, 받기/거절 API 시도
+- Foreground Service 기반 백그라운드 집중 보호
+- BLE 월이 기기 검색/연결, 시뮬레이션 연결, lock/unlock/status/calibration 명령
+- 거치/잠금/손 접근 상태 반영
+- 리듬/호흡/기억력 미션
+- 세션 완료 리포트와 통계 일부 실제 데이터 반영
 
 ### 2) ESP32 펌웨어
 
@@ -184,7 +174,7 @@ Android Studio를 쓰는 경우:
 - platform: `espressif32`
 - board: `esp32dev` (ESP32-WROOM-32)
 - framework: `arduino`
-- lib: `h2zero/NimBLE-Arduino`
+- lib: `h2zero/NimBLE-Arduino`, `madhephaestus/ESP32Servo`
 
 빌드/업로드:
 
@@ -196,7 +186,16 @@ pio run -t upload
 pio device monitor
 ```
 
-현재 `src/main.cpp`는 시리얼 로그 + 리미트 스위치 감지 스텁만 포함합니다.
+현재 `src/main.cpp`는 WOLI BLE GATT 서버를 실행합니다.
+
+| 항목 | 값 |
+|---|---|
+| BLE 이름 | `WOLI-DT01` |
+| Service UUID | `7e7a0001-1f5f-4c2b-9b6f-2d1b7f4f0100` |
+| Command UUID | `7e7a0002-1f5f-4c2b-9b6f-2d1b7f4f0100` |
+| Status UUID | `7e7a0003-1f5f-4c2b-9b6f-2d1b7f4f0100` |
+| Commands | `LOCK`, `UNLOCK`, `START`, `STOP`, `STATUS`, `CAL_LOCK=90`, `CAL_UNLOCK=10` |
+| Status payload | `mount=1;lock=0;hand=0;battery=100` |
 
 ### 3) (선택) 설계 도구
 
@@ -210,9 +209,17 @@ pio device monitor
 
 ## MVP 범위 (참고)
 
-**1차 MVP:** 앱 실행, 집중 시간, BLE, 서보 잠금, 눈 화면, 10분 단위 표시, 중요 전화, 완료/리포트  
+**1차 MVP:** 앱 실행, 집중 시간, BLE, 서보 잠금, 눈 화면, 남은 시간 표시, 중요 알림/전화, 음성 답장/명령, 완료/리포트
 
-**현재 저장소:** 위 화면의 **UI 껍데기** + 펌웨어 스켈레톤 + 기획 문서
+**현재 저장소:** 1차 MVP 소프트웨어 구현 + ESP32 BLE GATT/Servo 펌웨어 + 기획 문서
+
+### 남은 검증
+
+- Android 실기기에서 카카오톡/문자/Telegram/WhatsApp 답장 성공 여부 확인
+- Android 제조사별 발신자 번호 전달, 전화 받기/거절 API 허용 여부 확인
+- 실제 서보 각도, 리미트 스위치, 손 접근 센서 핀/전기적 안정성 캘리브레이션
+- Foreground Service 알림 권한과 배터리 최적화 예외 동작 확인
+- 최신 UI 상태에 맞춘 스크린샷 재촬영
 
 ---
 

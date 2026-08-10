@@ -10,6 +10,7 @@ data class WoliNotificationEvent(
     val canReply: Boolean,
     val postedAtMillis: Long,
     val replyAction: WoliReplyAction? = null,
+    val importantContactLabel: String? = null,
 )
 
 enum class WoliNotificationPriority {

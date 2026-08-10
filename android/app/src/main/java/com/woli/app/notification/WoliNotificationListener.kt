@@ -7,6 +7,6 @@ class WoliNotificationListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (sbn.packageName == packageName) return
 
-        NotificationEventParser.parse(sbn, packageManager)?.let(WoliNotificationCenter::add)
+        NotificationEventParser.parse(this, sbn, packageManager)?.let(WoliNotificationCenter::add)
     }
 }

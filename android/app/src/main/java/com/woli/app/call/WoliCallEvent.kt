@@ -1,6 +1,7 @@
 package com.woli.app.call
 
 import android.telephony.TelephonyManager
+import com.woli.app.contacts.WoliPhoneNumberNormalizer
 
 data class WoliCallEvent(
     val id: String,
@@ -8,11 +9,20 @@ data class WoliCallEvent(
     val callerLabel: String,
     val startedAtMillis: Long,
     val updatedAtMillis: Long,
+    val callerNumber: String? = null,
+    val normalizedCallerNumber: String? = callerNumber?.let(WoliPhoneNumberNormalizer::normalize),
+    val isImportant: Boolean = false,
 ) {
     companion object {
         const val UNKNOWN_CALLER_LABEL = "수신 전화"
     }
 }
+
+data class WoliCallerInfo(
+    val label: String = WoliCallEvent.UNKNOWN_CALLER_LABEL,
+    val phoneNumber: String? = null,
+    val isImportant: Boolean = false,
+)
 
 enum class WoliCallState {
     Ringing,

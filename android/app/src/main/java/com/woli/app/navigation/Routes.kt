@@ -20,4 +20,7 @@ object Routes {
     const val RHYTHM_MISSION = "rhythm_mission"
     const val SESSION_REPORT = "session_report"
     const val SHELL_GALLERY = "shell_gallery"
+    const val BREATHING_MISSION = "breathing_mission"
+    const val MEMORY_MISSION = "memory_mission"
+    const val APP_INFO = "app_info"
 }

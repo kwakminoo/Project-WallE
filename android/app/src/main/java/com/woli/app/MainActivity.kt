@@ -16,8 +16,12 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.woli.app.contacts.WoliImportantContactsStore
+import com.woli.app.focus.WoliFocusSessionController
 import com.woli.app.navigation.Routes
 import com.woli.app.notification.WoliNotificationAccess
+import com.woli.app.ui.screens.AppInfoScreen
+import com.woli.app.ui.screens.BreathingMissionScreen
 import com.woli.app.ui.screens.DeviceConnectScreen
 import com.woli.app.ui.screens.FocusCompleteScreen
 import com.woli.app.ui.screens.FocusEyesScreen
@@ -29,6 +33,7 @@ import com.woli.app.ui.screens.ImportantCallScreen
 import com.woli.app.ui.screens.ImportantContactsScreen
 import com.woli.app.ui.screens.MissionsScreen
 import com.woli.app.ui.screens.MountGuideScreen
+import com.woli.app.ui.screens.MemoryMissionScreen
 import com.woli.app.ui.screens.NotificationDiagnosticsScreen
 import com.woli.app.ui.screens.QuitConfirmScreen
 import com.woli.app.ui.screens.RemainingTimeScreen
@@ -47,6 +52,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         routeState.value = intent?.getStringExtra(EXTRA_ROUTE)
+        WoliImportantContactsStore.load(applicationContext)
+        WoliFocusSessionController.load(applicationContext)
         setContent {
             WoliTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = WoliBlack) {
@@ -106,6 +113,8 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
                 onBackHome = { navController.navigate(Routes.HOME) { popUpTo(Routes.HOME) { inclusive = true } } },
                 onStats = { navController.navigate(Routes.STATS) },
                 onSettings = { navController.navigate(Routes.SETTINGS) },
+                onOpenBreathing = { navController.navigate(Routes.BREATHING_MISSION) },
+                onOpenMemory = { navController.navigate(Routes.MEMORY_MISSION) },
             )
         }
         composable(Routes.SETTINGS) {
@@ -118,6 +127,25 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
                 onOpenDevice = { navController.navigate(Routes.DEVICE_CONNECT) },
                 onOpenContacts = { navController.navigate(Routes.IMPORTANT_CONTACTS) },
                 onOpenNotificationDiagnostics = { navController.navigate(Routes.NOTIFICATION_DIAGNOSTICS) },
+                onOpenAppInfo = { navController.navigate(Routes.APP_INFO) },
+            )
+        }
+        composable(Routes.BREATHING_MISSION) {
+            LockOrientation(activity, portrait = true)
+            BreathingMissionScreen(
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(Routes.MEMORY_MISSION) {
+            LockOrientation(activity, portrait = true)
+            MemoryMissionScreen(
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(Routes.APP_INFO) {
+            LockOrientation(activity, portrait = true)
+            AppInfoScreen(
+                onBack = { navController.popBackStack() },
             )
         }
         composable(Routes.FOCUS_TIME) {
