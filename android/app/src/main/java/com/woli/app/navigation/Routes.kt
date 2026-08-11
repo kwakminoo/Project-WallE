@@ -10,6 +10,7 @@ object Routes {
     const val IMPORTANT_CONTACTS = "important_contacts"
     const val FOCUS_NOTIFICATION_PERMISSION = "focus_notification_permission"
     const val NOTIFICATION_DIAGNOSTICS = "notification_diagnostics"
+    const val HARDWARE_DIAGNOSTICS = "hardware_diagnostics"
     const val MOUNT_GUIDE = "mount_guide"
     const val FOCUS_EYES = "focus_eyes"
     const val REMAINING_TIME = "remaining_time"

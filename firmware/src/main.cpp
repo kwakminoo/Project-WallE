@@ -73,6 +73,9 @@ struct DebouncedInput {
   bool candidateValue = false;
   uint8_t candidateCount = 0;
 
+  DebouncedInput(uint8_t inputPin, bool inputActiveLow)
+      : pin(inputPin), activeLow(inputActiveLow) {}
+
   bool readRaw() const {
     const bool high = digitalRead(pin) == HIGH;
     return activeLow ? !high : high;
@@ -99,14 +102,8 @@ struct DebouncedInput {
 
 static NimBLECharacteristic *statusCharacteristic = nullptr;
 static Servo lockServo;
-static DebouncedInput mountSensor = {
-    LIMIT_SWITCH_PIN,
-    MOUNT_SENSOR_ACTIVE_LOW == 1,
-};
-static DebouncedInput handSensor = {
-    HAND_SENSOR_PIN,
-    HAND_SENSOR_ACTIVE_LOW == 1,
-};
+static DebouncedInput mountSensor(LIMIT_SWITCH_PIN, MOUNT_SENSOR_ACTIVE_LOW == 1);
+static DebouncedInput handSensor(HAND_SENSOR_PIN, HAND_SENSOR_ACTIVE_LOW == 1);
 static bool locked = false;
 static bool mounted = false;
 static bool handNear = false;

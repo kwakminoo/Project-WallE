@@ -28,6 +28,7 @@ import com.woli.app.ui.screens.FocusEyesScreen
 import com.woli.app.ui.screens.FocusNotificationPermissionScreen
 import com.woli.app.ui.screens.FocusTimeSettingScreen
 import com.woli.app.ui.screens.HandWarningScreen
+import com.woli.app.ui.screens.HardwareDiagnosticsScreen
 import com.woli.app.ui.screens.HomeScreen
 import com.woli.app.ui.screens.ImportantCallScreen
 import com.woli.app.ui.screens.ImportantContactsScreen
@@ -127,6 +128,7 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
                 onOpenDevice = { navController.navigate(Routes.DEVICE_CONNECT) },
                 onOpenContacts = { navController.navigate(Routes.IMPORTANT_CONTACTS) },
                 onOpenNotificationDiagnostics = { navController.navigate(Routes.NOTIFICATION_DIAGNOSTICS) },
+                onOpenHardwareDiagnostics = { navController.navigate(Routes.HARDWARE_DIAGNOSTICS) },
                 onOpenAppInfo = { navController.navigate(Routes.APP_INFO) },
             )
         }
@@ -184,6 +186,12 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
                 onOpenNotificationSettings = {
                     activity.startActivity(WoliNotificationAccess.settingsIntent())
                 },
+            )
+        }
+        composable(Routes.HARDWARE_DIAGNOSTICS) {
+            LockOrientation(activity, portrait = true)
+            HardwareDiagnosticsScreen(
+                onBack = { navController.popBackStack() },
             )
         }
         composable(Routes.MOUNT_GUIDE) {

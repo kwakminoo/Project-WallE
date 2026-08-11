@@ -15,7 +15,7 @@
 | 앱 | Android (Kotlin + Jetpack Compose) |
 | 펌웨어 | ESP32 (Arduino / PlatformIO, NimBLE) |
 | 통신 | BLE (Bluetooth Low Energy) |
-| 현재 단계 | **1차 기능 완성 단계** — 중요 연락처, 음성 명령, 백그라운드 집중 보호, BLE 잠금/캘리브레이션까지 구현 |
+| 현재 단계 | **1차 기능 완성 + 실기기 검증 보강 단계** — 중요 연락처, 음성 명령, 백그라운드 집중 보호, BLE 잠금/캘리브레이션, 하드웨어 진단 화면까지 구현 |
 
 ### 핵심 아이디어
 
@@ -70,6 +70,9 @@ Project-WallE/
 ├── android/                 # Android 앱 (Compose + 알림/전화/BLE/세션 로직)
 ├── firmware/                # ESP32 PlatformIO BLE GATT 펌웨어
 ├── docs/screenshots/        # 현 화면 상태 캡처
+├── docs/RELEASE_CHECKLIST.md # APK/펌웨어 릴리즈 전 검증 항목
+├── docs/PRIVACY_NOTICE.md    # 개인정보·권한 사용 안내
+├── docs/DEMO_CHECKLIST.md    # 3-5분 발표/시연 순서
 ├── 디지털_디톡스_로봇_월이_기획안.md
 ├── SW 예 상시나리오.png
 ├── HW 구상도.png
@@ -154,7 +157,9 @@ Android Studio를 쓰는 경우:
 - 답장 전송 이력 저장과 앱별 검증 대시보드
 - 전화 수신 상태 감지, 발신자 best-effort 식별, TTS 안내, 받기/거절 API 시도
 - Foreground Service 기반 백그라운드 집중 보호
+- Android 13+ 포그라운드 알림 권한과 배터리 최적화 상태 점검
 - BLE 월이 기기 검색/연결, 시뮬레이션 연결, lock/unlock/status/calibration 명령
+- 설정 화면의 하드웨어 검증 도구
 - 거치/잠금/손 접근 상태 반영
 - 리듬/호흡/기억력 미션
 - 세션 완료 리포트와 통계 일부 실제 데이터 반영
@@ -213,13 +218,15 @@ pio device monitor
 
 **현재 저장소:** 1차 MVP 소프트웨어 구현 + ESP32 BLE GATT/Servo 펌웨어 + 기획 문서
 
-### 남은 검증
+### 실기기 검증 체크리스트
 
 - Android 실기기에서 카카오톡/문자/Telegram/WhatsApp 답장 성공 여부 확인
 - Android 제조사별 발신자 번호 전달, 전화 받기/거절 API 허용 여부 확인
 - 실제 서보 각도, 리미트 스위치, 손 접근 센서 핀/전기적 안정성 캘리브레이션
 - Foreground Service 알림 권한과 배터리 최적화 예외 동작 확인
 - 최신 UI 상태에 맞춘 스크린샷 재촬영
+
+자세한 제출 전 점검은 [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md), 개인정보 안내는 [`docs/PRIVACY_NOTICE.md`](docs/PRIVACY_NOTICE.md), 시연 흐름은 [`docs/DEMO_CHECKLIST.md`](docs/DEMO_CHECKLIST.md)를 확인하세요.
 
 ---
 

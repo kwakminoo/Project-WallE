@@ -265,6 +265,7 @@ fun SettingsScreen(
     onOpenDevice: () -> Unit,
     onOpenContacts: () -> Unit,
     onOpenNotificationDiagnostics: () -> Unit,
+    onOpenHardwareDiagnostics: () -> Unit,
     onOpenAppInfo: () -> Unit,
 ) {
     ShellTabScaffold(
@@ -279,6 +280,7 @@ fun SettingsScreen(
         SettingsRow("중요 연락처", onOpenContacts)
         SettingsRow("화면 상태 갤러리", onOpenGallery)
         SettingsRow("알림 / TTS 검증", onOpenNotificationDiagnostics)
+        SettingsRow("하드웨어 검증", onOpenHardwareDiagnostics)
         SettingsRow("앱 정보", onOpenAppInfo)
     }
 }
