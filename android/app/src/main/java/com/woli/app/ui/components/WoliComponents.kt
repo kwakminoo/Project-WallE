@@ -25,18 +25,18 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.woli.app.ui.theme.WoliAnger
 import com.woli.app.ui.theme.WoliBlack
 import com.woli.app.ui.theme.WoliCyan
 import com.woli.app.ui.theme.WoliMuted
 import com.woli.app.ui.theme.WoliText
-import com.woli.app.ui.theme.WoliWarning
 import com.woli.app.ui.theme.WoliYellow
 
 enum class EyeMood {
@@ -100,82 +100,218 @@ fun WoliEyes(
     eyeSize: Dp = 72.dp,
     gap: Dp = 56.dp,
     showWarningBadge: Boolean = false,
+    mirrorAngry: Boolean = true,
 ) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(gap),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            EyeGlyph(mood = mood, size = eyeSize)
-            EyeGlyph(mood = mood, size = eyeSize)
+            EyeGlyph(mood = mood, size = eyeSize, flipHorizontal = false)
+            EyeGlyph(
+                mood = mood,
+                size = eyeSize,
+                flipHorizontal = mirrorAngry && mood == EyeMood.Angry,
+            )
         }
         if (showWarningBadge) {
             Canvas(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 8.dp, end = 8.dp)
-                    .size(36.dp),
+                    .padding(top = 4.dp, end = 4.dp)
+                    .size(88.dp),
             ) {
-                val path = Path().apply {
-                    moveTo(size.width / 2f, 0f)
-                    lineTo(size.width, size.height)
-                    lineTo(0f, size.height)
-                    close()
-                }
-                drawPath(path, color = WoliWarning)
-                drawCircle(
-                    color = Color.White,
-                    radius = 3.dp.toPx(),
-                    center = Offset(size.width / 2f, size.height * 0.62f),
-                )
-                drawLine(
-                    color = Color.White,
-                    start = Offset(size.width / 2f, size.height * 0.28f),
-                    end = Offset(size.width / 2f, size.height * 0.48f),
-                    strokeWidth = 3.dp.toPx(),
-                    cap = StrokeCap.Round,
-                )
+                drawAngerVeinMark(color = WoliAnger)
             }
         }
     }
 }
 
 @Composable
-private fun EyeGlyph(mood: EyeMood, size: Dp) {
+private fun EyeGlyph(
+    mood: EyeMood,
+    size: Dp,
+    flipHorizontal: Boolean = false,
+) {
     Canvas(modifier = Modifier.size(size)) {
-        val stroke = (size.toPx() * 0.12f)
+        val w = size.toPx()
+        val cell = (w * 0.075f).coerceIn(4f, 14f)
         when (mood) {
+            // 기획 시나리오: LED 도트 원형 눈
             EyeMood.Idle, EyeMood.Alert -> {
-                drawCircle(color = WoliCyan)
-                drawCircle(
-                    color = WoliBlack,
-                    radius = size.toPx() * 0.28f,
-                    center = center,
-                )
+                drawPixelCircle(center = center, radius = w * 0.48f, color = WoliCyan, cell = cell)
             }
+            // 놀람/완료: 위쪽 아치 (n n) — 동일 도트
             EyeMood.Happy, EyeMood.Complete -> {
-                val path = Path().apply {
-                    val w = size.toPx()
-                    moveTo(w * 0.1f, w * 0.55f)
-                    quadraticTo(w * 0.5f, w * 0.15f, w * 0.9f, w * 0.55f)
-                }
-                drawPath(
-                    path = path,
+                drawPixelArc(
+                    p0 = Offset(w * 0.06f, w * 0.62f),
+                    p1 = Offset(w * 0.5f, w * 0.08f),
+                    p2 = Offset(w * 0.94f, w * 0.62f),
+                    stroke = w * 0.18f,
                     color = WoliCyan,
-                    style = Stroke(width = stroke, cap = StrokeCap.Round),
+                    cell = cell,
                 )
             }
+            // 손 접근: Idle과 같은 크기·위치의 원을 비스듬히 반으로 자른 채움 눈
             EyeMood.Angry -> {
-                val path = Path().apply {
-                    val w = size.toPx()
-                    moveTo(w * 0.08f, w * 0.28f)
-                    lineTo(w * 0.92f, w * 0.48f)
-                    quadraticTo(w * 0.5f, w * 0.95f, w * 0.08f, w * 0.55f)
-                    close()
-                }
-                drawPath(path, color = WoliCyan)
+                // 왼쪽 \, 오른쪽 / — 평평한 컷이 가운데(안쪽)로 기울어 화난 인상
+                val diameterDeg = if (!flipHorizontal) 38f else -38f
+                drawPixelHalfCircle(
+                    center = center,
+                    radius = w * 0.48f,
+                    diameterAngleDeg = diameterDeg,
+                    keepBelow = true,
+                    color = WoliAnger,
+                    cell = cell,
+                )
             }
         }
+    }
+}
+
+/**
+ * 만화 💢 — 네 모서리 원호(끝은 각지게).
+ * 작은 캔버스+두꺼운 스트로크면 뭉개지므로 비율을 넉넉히 둔다.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawAngerVeinMark(
+    color: Color,
+) {
+    val s = size.minDimension
+    val cx = size.width * 0.5f
+    val cy = size.height * 0.5f
+    val radius = s * 0.34f
+    val sweep = 58f
+    val stroke = Stroke(
+        width = s * 0.168f,
+        cap = StrokeCap.Butt,
+        join = StrokeJoin.Miter,
+    )
+    // drawArc: 0°=3시, 시계방향. 모서리 중앙각 NW/NE/SE/SW
+    val midAngles = floatArrayOf(225f, 315f, 45f, 135f)
+    val topLeft = Offset(cx - radius, cy - radius)
+    val arcSize = Size(radius * 2f, radius * 2f)
+    for (mid in midAngles) {
+        drawArc(
+            color = color,
+            startAngle = mid - sweep * 0.5f,
+            sweepAngle = sweep,
+            useCenter = false,
+            topLeft = topLeft,
+            size = arcSize,
+            style = stroke,
+        )
+    }
+}
+
+/** Idle 원과 동일 반경·중심, 지름선으로 반만 채움(비스듬한 화난 눈) */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPixelHalfCircle(
+    center: Offset,
+    radius: Float,
+    diameterAngleDeg: Float,
+    keepBelow: Boolean,
+    color: Color,
+    cell: Float,
+) {
+    val angle = Math.toRadians(diameterAngleDeg.toDouble())
+    // 지름선에 수직인 법선 — keepBelow면 법선 아래쪽(화면 +y) 반을 유지
+    val nx = (-kotlin.math.sin(angle)).toFloat()
+    val ny = kotlin.math.cos(angle).toFloat()
+    val side = if (keepBelow) 1f else -1f
+    val r2 = radius * radius
+    var y = center.y - radius
+    while (y <= center.y + radius) {
+        var x = center.x - radius
+        while (x <= center.x + radius) {
+            val px = x + cell * 0.5f
+            val py = y + cell * 0.5f
+            val dx = px - center.x
+            val dy = py - center.y
+            if (dx * dx + dy * dy <= r2 && (dx * nx + dy * ny) * side >= 0f) {
+                drawPixelDot(x, y, cell, color)
+            }
+            x += cell
+        }
+        y += cell
+    }
+}
+
+/** ponytail: LED 도트 눈 — 셀 그리드 O(n²). 고해상도면 Bitmap 캐시로 교체 */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPixelDot(
+    x: Float,
+    y: Float,
+    cell: Float,
+    color: Color,
+) {
+    drawRoundRect(
+        color = color,
+        topLeft = Offset(x, y),
+        size = Size(cell * 0.86f, cell * 0.86f),
+        cornerRadius = CornerRadius(cell * 0.18f, cell * 0.18f),
+    )
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPixelCircle(
+    center: Offset,
+    radius: Float,
+    color: Color,
+    cell: Float = (radius * 0.16f).coerceIn(4f, 14f),
+) {
+    val r2 = radius * radius
+    var y = center.y - radius
+    while (y <= center.y + radius) {
+        var x = center.x - radius
+        while (x <= center.x + radius) {
+            val dx = x + cell * 0.5f - center.x
+            val dy = y + cell * 0.5f - center.y
+            if (dx * dx + dy * dy <= r2) drawPixelDot(x, y, cell, color)
+            x += cell
+        }
+        y += cell
+    }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPixelArc(
+    p0: Offset,
+    p1: Offset,
+    p2: Offset,
+    stroke: Float,
+    color: Color,
+    cell: Float,
+) {
+    val half = stroke * 0.5f
+    val minX = minOf(p0.x, p1.x, p2.x) - half
+    val maxX = maxOf(p0.x, p1.x, p2.x) + half
+    val minY = minOf(p0.y, p1.y, p2.y) - half
+    val maxY = maxOf(p0.y, p1.y, p2.y) + half
+    val samples = 48
+    val curve = Array(samples + 1) { i ->
+        val t = i / samples.toFloat()
+        val u = 1f - t
+        Offset(
+            u * u * p0.x + 2f * u * t * p1.x + t * t * p2.x,
+            u * u * p0.y + 2f * u * t * p1.y + t * t * p2.y,
+        )
+    }
+    val half2 = half * half
+    var y = minY
+    while (y <= maxY) {
+        var x = minX
+        while (x <= maxX) {
+            val cx = x + cell * 0.5f
+            val cy = y + cell * 0.5f
+            var near = false
+            for (p in curve) {
+                val dx = cx - p.x
+                val dy = cy - p.y
+                if (dx * dx + dy * dy <= half2) {
+                    near = true
+                    break
+                }
+            }
+            if (near) drawPixelDot(x, y, cell, color)
+            x += cell
+        }
+        y += cell
     }
 }
 

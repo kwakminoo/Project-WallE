@@ -18,6 +18,8 @@ val WoliYellowDim = Color(0xFFC9A000)
 val WoliCyan = Color(0xFF00E5FF)
 val WoliCyanSoft = Color(0xFF40E0F0)
 val WoliWarning = Color(0xFFFF3B30)
+/** 손접근 화남 표식 — 레퍼런스 💢 크림슨 */
+val WoliAnger = Color(0xFFBE1931)
 val WoliText = Color(0xFFFFFFFF)
 val WoliMuted = Color(0xFF9E9E9E)
 val WoliOrange = Color(0xFFFF9F0A)

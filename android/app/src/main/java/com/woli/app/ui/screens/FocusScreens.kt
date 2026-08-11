@@ -2,6 +2,7 @@ package com.woli.app.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
@@ -1013,6 +1014,7 @@ fun HandWarningScreen(onDismiss: () -> Unit) {
 
 @Composable
 fun FocusCompleteScreen(onReport: () -> Unit, onHome: () -> Unit) {
+    BackHandler(onBack = onHome)
     val callHistory by WoliCallCenter.history.collectAsState()
     val completedSession = WoliFocusSessionController.latestCompleted()
     val elapsed = completedSession?.elapsedMillis(completedSession.completedAtMillis ?: System.currentTimeMillis()) ?: 0L
@@ -1167,6 +1169,7 @@ fun RhythmMissionScreen(onSuccess: () -> Unit, onCancel: () -> Unit) {
 
 @Composable
 fun SessionReportScreen(onHome: () -> Unit) {
+    BackHandler(onBack = onHome)
     val context = LocalContext.current
     LaunchedEffect(context) {
         WoliReplyHistoryStore.load(context)

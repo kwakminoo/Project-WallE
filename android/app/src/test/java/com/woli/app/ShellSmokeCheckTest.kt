@@ -1,6 +1,9 @@
 package com.woli.app
 
+import com.woli.app.navigation.FocusSessionNav
 import com.woli.app.navigation.Routes
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -26,5 +29,44 @@ class ShellSmokeCheckTest {
             Routes.SESSION_REPORT,
         )
         assertTrue(ShellSmokeCheck.assertRoutesNonEmpty(routes))
+    }
+
+    @Test
+    fun focusSessionEndClearsEyesFromBackStack() {
+        assertEquals(Routes.HOME, FocusSessionNav.POP_UP_TO_ON_SESSION_END)
+        assertFalse(FocusSessionNav.POP_INCLUSIVE_ON_SESSION_END)
+
+        val stackAfterSessionEnd = listOf(Routes.HOME, Routes.FOCUS_COMPLETE)
+        assertFalse(FocusSessionNav.leavesFocusEyesOnBackStack(stackAfterSessionEnd))
+
+        val buggyStack = listOf(Routes.HOME, Routes.FOCUS_EYES, Routes.FOCUS_COMPLETE)
+        assertTrue(FocusSessionNav.leavesFocusEyesOnBackStack(buggyStack))
+    }
+
+    @Test
+    fun forceHomeAfterSessionExitWhenRestoredToFocus() {
+        assertTrue(
+            FocusSessionNav.shouldForceHomeAfterSessionExit(true, Routes.FOCUS_EYES),
+        )
+        assertTrue(
+            FocusSessionNav.shouldForceHomeAfterSessionExit(true, Routes.RHYTHM_MISSION),
+        )
+        assertTrue(
+            FocusSessionNav.shouldForceHomeAfterSessionExit(true, Routes.FOCUS_COMPLETE),
+        )
+        assertFalse(
+            FocusSessionNav.shouldForceHomeAfterSessionExit(true, Routes.HOME),
+        )
+        assertFalse(
+            FocusSessionNav.shouldForceHomeAfterSessionExit(false, Routes.FOCUS_EYES),
+        )
+    }
+
+    @Test
+    fun landscapeRoutesMatchFocusSessionSurfaces() {
+        assertTrue(FocusSessionNav.isLandscapeRoute(Routes.FOCUS_EYES))
+        assertTrue(FocusSessionNav.isLandscapeRoute(Routes.QUIT_CONFIRM))
+        assertFalse(FocusSessionNav.isLandscapeRoute(Routes.HOME))
+        assertFalse(FocusSessionNav.isLandscapeRoute(Routes.FOCUS_TIME))
     }
 }
