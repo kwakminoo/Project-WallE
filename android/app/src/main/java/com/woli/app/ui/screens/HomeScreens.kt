@@ -264,6 +264,7 @@ fun SettingsScreen(
     onOpenGallery: () -> Unit,
     onOpenDevice: () -> Unit,
     onOpenContacts: () -> Unit,
+    onOpenNotificationPolicy: () -> Unit,
     onOpenNotificationDiagnostics: () -> Unit,
     onOpenHardwareDiagnostics: () -> Unit,
     onOpenAppInfo: () -> Unit,
@@ -278,6 +279,7 @@ fun SettingsScreen(
     ) {
         SettingsRow("월이 기기 연결", onOpenDevice)
         SettingsRow("중요 연락처", onOpenContacts)
+        SettingsRow("집중 알림 기준", onOpenNotificationPolicy)
         SettingsRow("화면 상태 갤러리", onOpenGallery)
         SettingsRow("알림 / TTS 검증", onOpenNotificationDiagnostics)
         SettingsRow("하드웨어 검증", onOpenHardwareDiagnostics)

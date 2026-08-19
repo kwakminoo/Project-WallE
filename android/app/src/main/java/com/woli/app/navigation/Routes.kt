@@ -9,6 +9,7 @@ object Routes {
     const val DEVICE_CONNECT = "device_connect"
     const val IMPORTANT_CONTACTS = "important_contacts"
     const val FOCUS_NOTIFICATION_PERMISSION = "focus_notification_permission"
+    const val NOTIFICATION_POLICY = "notification_policy"
     const val NOTIFICATION_DIAGNOSTICS = "notification_diagnostics"
     const val HARDWARE_DIAGNOSTICS = "hardware_diagnostics"
     const val MOUNT_GUIDE = "mount_guide"

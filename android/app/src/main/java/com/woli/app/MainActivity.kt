@@ -26,6 +26,7 @@ import com.woli.app.focus.WoliFocusSessionController
 import com.woli.app.navigation.FocusSessionNav
 import com.woli.app.navigation.Routes
 import com.woli.app.notification.WoliNotificationAccess
+import com.woli.app.notification.WoliNotificationRuleStore
 import com.woli.app.ui.screens.AppInfoScreen
 import com.woli.app.ui.screens.BreathingMissionScreen
 import com.woli.app.ui.screens.DeviceConnectScreen
@@ -42,6 +43,7 @@ import com.woli.app.ui.screens.MissionsScreen
 import com.woli.app.ui.screens.MountGuideScreen
 import com.woli.app.ui.screens.MemoryMissionScreen
 import com.woli.app.ui.screens.NotificationDiagnosticsScreen
+import com.woli.app.ui.screens.NotificationPolicyScreen
 import com.woli.app.ui.screens.QuitConfirmScreen
 import com.woli.app.ui.screens.RemainingTimeScreen
 import com.woli.app.ui.screens.RhythmMissionScreen
@@ -61,6 +63,7 @@ class MainActivity : ComponentActivity() {
         routeState.value = intent?.getStringExtra(EXTRA_ROUTE)
         WoliImportantContactsStore.load(applicationContext)
         WoliFocusSessionController.load(applicationContext)
+        WoliNotificationRuleStore.load(applicationContext)
         setContent {
             WoliTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = WoliBlack) {
@@ -146,6 +149,7 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
                 onOpenGallery = { navController.navigate(Routes.SHELL_GALLERY) },
                 onOpenDevice = { navController.navigate(Routes.DEVICE_CONNECT) },
                 onOpenContacts = { navController.navigate(Routes.IMPORTANT_CONTACTS) },
+                onOpenNotificationPolicy = { navController.navigate(Routes.NOTIFICATION_POLICY) },
                 onOpenNotificationDiagnostics = { navController.navigate(Routes.NOTIFICATION_DIAGNOSTICS) },
                 onOpenHardwareDiagnostics = { navController.navigate(Routes.HARDWARE_DIAGNOSTICS) },
                 onOpenAppInfo = { navController.navigate(Routes.APP_INFO) },
@@ -193,6 +197,12 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
                 onBack = { navController.popBackStack() },
                 onOpenDiagnostics = { navController.navigate(Routes.NOTIFICATION_DIAGNOSTICS) },
                 onNext = { navController.navigate(Routes.MOUNT_GUIDE) },
+            )
+        }
+        composable(Routes.NOTIFICATION_POLICY) {
+            LockOrientation(activity, portrait = true)
+            NotificationPolicyScreen(
+                onBack = { navController.popBackStack() },
             )
         }
         composable(Routes.NOTIFICATION_DIAGNOSTICS) {

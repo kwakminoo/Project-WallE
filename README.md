@@ -153,6 +153,8 @@ Android Studio를 쓰는 경우:
 - 집중 시간 설정과 실제 세션 타이머
 - 중요 연락처 수동 저장, 단말 연락처 불러오기, 이름/번호 기반 중요도 매칭
 - Android 알림 접근 기반 중요 알림 감지/TTS
+- `집중 우선 / 균형 / 시연` 모드 기반 알림 판단 정책
+- 일반 카카오톡/문자/DM 기본 제외, 중요 연락처·긴급 표현·허용 앱만 안내
 - 답장 가능한 알림의 음성 인식 초안 생성, 음성 명령, RemoteInput 전송
 - 답장 전송 이력 저장과 앱별 검증 대시보드
 - 전화 수신 상태 감지, 발신자 best-effort 식별, TTS 안내, 받기/거절 API 시도
@@ -220,13 +222,15 @@ pio device monitor
 
 ### 실기기 검증 체크리스트
 
+- 설정 > 집중 알림 기준에서 `균형` 모드와 허용 앱 상태 확인
 - Android 실기기에서 카카오톡/문자/Telegram/WhatsApp 답장 성공 여부 확인
+- 일반 메신저 알림은 제외되고 중요 연락처/긴급 알림만 TTS 안내되는지 확인
 - Android 제조사별 발신자 번호 전달, 전화 받기/거절 API 허용 여부 확인
 - 실제 서보 각도, 리미트 스위치, 손 접근 센서 핀/전기적 안정성 캘리브레이션
 - Foreground Service 알림 권한과 배터리 최적화 예외 동작 확인
 - 최신 UI 상태에 맞춘 스크린샷 재촬영
 
-자세한 제출 전 점검은 [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md), 개인정보 안내는 [`docs/PRIVACY_NOTICE.md`](docs/PRIVACY_NOTICE.md), 시연 흐름은 [`docs/DEMO_CHECKLIST.md`](docs/DEMO_CHECKLIST.md)를 확인하세요.
+자세한 제출 전 점검은 [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md), 알림 판단 기준은 [`docs/NOTIFICATION_POLICY.md`](docs/NOTIFICATION_POLICY.md), 개인정보 안내는 [`docs/PRIVACY_NOTICE.md`](docs/PRIVACY_NOTICE.md), 시연 흐름은 [`docs/DEMO_CHECKLIST.md`](docs/DEMO_CHECKLIST.md)를 확인하세요.
 
 ---
 

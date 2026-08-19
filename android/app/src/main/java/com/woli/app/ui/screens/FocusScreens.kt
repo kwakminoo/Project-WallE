@@ -655,6 +655,11 @@ private fun FocusNotificationPanel(
             fontSize = 12.sp,
         )
         Text(
+            text = "판단 기준 · ${latestEvent.importanceReason.label}",
+            color = WoliMuted,
+            fontSize = 12.sp,
+        )
+        Text(
             text = if (latestEvent.priority == WoliNotificationPriority.Normal) {
                 "음성 안내 제외"
             } else {
