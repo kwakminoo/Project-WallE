@@ -36,11 +36,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.woli.app.call.WoliCallCenter
+import com.woli.app.focus.WoliFocusNotificationPermissions
 import com.woli.app.focus.WoliFocusSessionController
 import com.woli.app.focus.formatDurationKorean
 import com.woli.app.notification.WoliReplyHistoryResultType
@@ -61,11 +64,55 @@ fun HomeScreen(
     onOpenStats: () -> Unit,
     onOpenMissions: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenPermissionSetup: () -> Unit,
 ) {
+    val context = LocalContext.current
+    var showPermissionPrompt by remember { mutableStateOf(false) }
     val config by WoliFocusSessionController.config.collectAsState()
     val focusHistory by WoliFocusSessionController.history.collectAsState()
     val totalFocusMillis = focusHistory.sumOf { session ->
         session.elapsedMillis(session.completedAtMillis ?: System.currentTimeMillis())
+    }
+
+    LaunchedEffect(Unit) {
+        if (!WoliFocusNotificationPermissions.allGranted(context)) {
+            showPermissionPrompt = true
+        }
+    }
+
+    if (showPermissionPrompt) {
+        AlertDialog(
+            onDismissRequest = { showPermissionPrompt = false },
+            title = {
+                Text(
+                    text = "권한 설정이 필요해요",
+                    color = WoliText,
+                    fontWeight = FontWeight.Bold,
+                )
+            },
+            text = {
+                Text(
+                    text = "중요 알림과 전화를 월이가 전달하려면 권한 설정이 필요합니다. 지금 설정할까요?",
+                    color = WoliMuted,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showPermissionPrompt = false
+                        onOpenPermissionSetup()
+                    },
+                ) {
+                    Text("권한 설정하기", color = WoliYellow, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPermissionPrompt = false }) {
+                    Text("나중에", color = WoliMuted)
+                }
+            },
+            containerColor = Color(0xFF1C1C1E),
+        )
     }
 
     Column(

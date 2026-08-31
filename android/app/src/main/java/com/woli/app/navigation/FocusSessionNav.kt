@@ -22,11 +22,22 @@ object FocusSessionNav {
         Routes.SESSION_REPORT,
     )
 
+    private val completionRedirectRoutes: Set<String> = setOf(
+        Routes.FOCUS_EYES,
+        Routes.REMAINING_TIME,
+        Routes.IMPORTANT_CALL,
+        Routes.HAND_WARNING,
+        Routes.QUIT_CONFIRM,
+        Routes.RHYTHM_MISSION,
+    )
+
     fun isLandscapeRoute(route: String?): Boolean =
         route != null && route in landscapeRoutes
 
     fun leavesFocusEyesOnBackStack(afterPopRoutes: List<String>): Boolean =
         Routes.FOCUS_EYES in afterPopRoutes
+
+    fun shouldRedirectToNormalCompletion(route: String?): Boolean = route in completionRedirectRoutes
 
     /** Activity 재생성 후 복원된 라우트가 집중 세션이면 홈으로 강제해야 한다. */
     fun shouldForceHomeAfterSessionExit(forceHome: Boolean, currentRoute: String?): Boolean {

@@ -69,4 +69,14 @@ class ShellSmokeCheckTest {
         assertFalse(FocusSessionNav.isLandscapeRoute(Routes.HOME))
         assertFalse(FocusSessionNav.isLandscapeRoute(Routes.FOCUS_TIME))
     }
+
+    @Test
+    fun normalCompletionRedirectsOnlyInProgressFocusRoutes() {
+        assertTrue(FocusSessionNav.shouldRedirectToNormalCompletion(Routes.FOCUS_EYES))
+        assertTrue(FocusSessionNav.shouldRedirectToNormalCompletion(Routes.HAND_WARNING))
+        assertTrue(FocusSessionNav.shouldRedirectToNormalCompletion(Routes.RHYTHM_MISSION))
+        assertFalse(FocusSessionNav.shouldRedirectToNormalCompletion(Routes.FOCUS_COMPLETE))
+        assertFalse(FocusSessionNav.shouldRedirectToNormalCompletion(Routes.SESSION_REPORT))
+        assertFalse(FocusSessionNav.shouldRedirectToNormalCompletion(Routes.HOME))
+    }
 }

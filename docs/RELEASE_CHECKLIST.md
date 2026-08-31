@@ -9,8 +9,12 @@
 
 ```bash
 cd android
-ANDROID_HOME=/Users/<YOU>/Library/Android/sdk ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
+.\gradlew.bat :app:testDebugUnitTest
+.\gradlew.bat :app:assembleDebug
+.\gradlew.bat lint
 ```
+
+macOS/Linux에서는 `./gradlew :app:testDebugUnitTest :app:assembleDebug lint`를 사용합니다.
 
 - [ ] APK 위치를 확인한다.
 
@@ -97,7 +101,14 @@ pio device monitor
 ```
 
 - [ ] BLE 이름이 `WOLI-DT01`로 보인다.
-- [ ] 앱의 설정 > 하드웨어 검증에서 `STATUS`, `LOCK`, `UNLOCK`, `CAL_LOCK`, `CAL_UNLOCK` 명령이 동작한다.
+- [ ] 앱의 설정 > 하드웨어 검증에서 `STATUS`, `LOCK`, `UNLOCK`, `START`, `SESSION_END`, `CAL_LOCK`, `CAL_UNLOCK` 명령이 동작한다.
+- [ ] `START` 후 Status가 `lock=1;session=1`을, 정상 완료의 `SESSION_END` 후 `lock=0;session=0`을 보고한다.
+- [ ] Status Characteristic의 READ + NOTIFY로 mount/lock/hand/battery/session이 실제 상태와 일치한다.
+- [ ] GPIO 19 거치 입력과 GPIO 21 손 접근 입력이 debounce 후 즉시 Notify된다. 손을 유지해도 세션 경고 횟수는 증가하지 않고, 손을 떼면 집중 눈 화면으로 복귀한다.
+- [ ] 집중 중 연결을 끊고 다시 연결한 뒤 `STATUS` 동기화가 정상이며 앱 타이머/세션 기록이 유지된다.
+- [ ] nRF Connect에서 Command Write와 Status Read + Notify를 별도로 확인했다.
+
+세부 배선, 안전 주의, STEP 1–15, nRF Connect 절차는 [ESP32 BLE 실기기 검증](ESP32_BLE_HARDWARE_TEST.md)을 따른다.
 
 ## 6. 시연 전 고정
 

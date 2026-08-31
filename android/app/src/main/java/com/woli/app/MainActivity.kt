@@ -11,11 +11,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import com.woli.app.focus.WoliFocusNotificationPermissions
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -23,6 +26,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.woli.app.contacts.WoliImportantContactsStore
 import com.woli.app.focus.WoliFocusSessionController
+import com.woli.app.focus.WoliFocusExitReason
 import com.woli.app.navigation.FocusSessionNav
 import com.woli.app.navigation.Routes
 import com.woli.app.notification.WoliNotificationAccess
@@ -91,6 +95,9 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
     var forceHomeAfterSessionExit by rememberSaveable { mutableStateOf(false) }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    val currentFocusSession by WoliFocusSessionController.current.collectAsState()
+    val focusHistory by WoliFocusSessionController.history.collectAsState()
+    val latestCompletedSession = focusHistory.firstOrNull()
 
     LaunchedEffect(startRoute) {
         val route = startRoute?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
@@ -104,6 +111,15 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
     LaunchedEffect(forceHomeAfterSessionExit, currentRoute) {
         if (FocusSessionNav.shouldForceHomeAfterSessionExit(forceHomeAfterSessionExit, currentRoute)) {
             navController.navigateHomeClearingStack()
+        }
+    }
+
+    LaunchedEffect(currentFocusSession?.id, latestCompletedSession?.id, currentRoute) {
+        if (currentFocusSession == null &&
+            latestCompletedSession?.exitReason == WoliFocusExitReason.Completed &&
+            FocusSessionNav.shouldRedirectToNormalCompletion(currentRoute)
+        ) {
+            navController.navigateSessionEnd(Routes.FOCUS_COMPLETE)
         }
     }
 
@@ -123,6 +139,7 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
                 onOpenStats = { navController.navigate(Routes.STATS) },
                 onOpenMissions = { navController.navigate(Routes.MISSIONS) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                onOpenPermissionSetup = { navController.navigate(Routes.FOCUS_NOTIFICATION_PERMISSION) },
             )
         }
         composable(Routes.STATS) {
@@ -186,9 +203,16 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
             )
         }
         composable(Routes.IMPORTANT_CONTACTS) {
+            val context = LocalContext.current
             ImportantContactsScreen(
                 onBack = { navController.popBackStack() },
-                onNext = { navController.navigate(Routes.FOCUS_NOTIFICATION_PERMISSION) },
+                onNext = {
+                    if (WoliFocusNotificationPermissions.allGranted(context)) {
+                        navController.navigate(Routes.MOUNT_GUIDE)
+                    } else {
+                        navController.navigate(Routes.FOCUS_NOTIFICATION_PERMISSION)
+                    }
+                },
             )
         }
         composable(Routes.FOCUS_NOTIFICATION_PERMISSION) {
@@ -196,7 +220,16 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
             FocusNotificationPermissionScreen(
                 onBack = { navController.popBackStack() },
                 onOpenDiagnostics = { navController.navigate(Routes.NOTIFICATION_DIAGNOSTICS) },
-                onNext = { navController.navigate(Routes.MOUNT_GUIDE) },
+                onNext = {
+                    val previousRoute = navController.previousBackStackEntry?.destination?.route
+                    if (previousRoute == Routes.IMPORTANT_CONTACTS) {
+                        navController.navigate(Routes.MOUNT_GUIDE) {
+                            popUpTo(Routes.FOCUS_NOTIFICATION_PERMISSION) { inclusive = true }
+                        }
+                    } else {
+                        navController.popBackStack()
+                    }
+                },
             )
         }
         composable(Routes.NOTIFICATION_POLICY) {
@@ -233,9 +266,6 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
                 onShowWarning = { navController.navigate(Routes.HAND_WARNING) },
                 onQuit = { navController.navigate(Routes.QUIT_CONFIRM) },
                 onComplete = { navController.navigateSessionEnd(Routes.FOCUS_COMPLETE) },
-                onOpenNotificationSettings = {
-                    activity.startActivity(WoliNotificationAccess.settingsIntent())
-                },
             )
         }
         composable(Routes.REMAINING_TIME) {

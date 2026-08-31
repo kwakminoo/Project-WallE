@@ -14,6 +14,7 @@ object WoliDeviceProtocol {
     const val COMMAND_UNLOCK = "UNLOCK"
     const val COMMAND_START = "START"
     const val COMMAND_STOP = "STOP"
+    const val COMMAND_SESSION_END = "SESSION_END"
     const val COMMAND_STATUS = "STATUS"
 
     fun commandCalibrateLock(angle: Int): String = "CAL_LOCK=${angle.coerceIn(0, 180)}"
@@ -36,6 +37,7 @@ object WoliDeviceProtocol {
             locked = pairs["lock"].asBoolean(),
             handNear = pairs["hand"].asBoolean(),
             batteryPercent = pairs["battery"]?.toIntOrNull()?.coerceIn(0, 100),
+            sessionActive = pairs["session"].asBoolean(),
         )
     }
 
@@ -45,6 +47,7 @@ object WoliDeviceProtocol {
             "lock=${status.locked.asInt()}",
             "hand=${status.handNear.asInt()}",
             "battery=${status.batteryPercent ?: 100}",
+            "session=${status.sessionActive.asInt()}",
         ).joinToString(";")
     }
 
@@ -60,4 +63,5 @@ data class WoliDeviceHardwareStatus(
     val locked: Boolean = false,
     val handNear: Boolean = false,
     val batteryPercent: Int? = null,
+    val sessionActive: Boolean = false,
 )

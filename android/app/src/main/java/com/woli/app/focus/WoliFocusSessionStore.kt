@@ -8,6 +8,7 @@ data class WoliFocusSessionSnapshot(
     val config: WoliFocusSessionConfig = WoliFocusSessionConfig(),
     val current: WoliFocusSession? = null,
     val history: List<WoliFocusSession> = emptyList(),
+    val pendingHardwareCommand: String? = null,
 )
 
 object WoliFocusSessionStore {
@@ -24,6 +25,7 @@ object WoliFocusSessionStore {
                 config = root.optJSONObject("config").toConfig(),
                 current = root.optJSONObject("current")?.toSession(),
                 history = root.optJSONArray("history").toSessionList(),
+                pendingHardwareCommand = root.optNullableString("pendingHardwareCommand"),
             )
         }.getOrDefault(WoliFocusSessionSnapshot())
     }
@@ -33,10 +35,12 @@ object WoliFocusSessionStore {
         config: WoliFocusSessionConfig,
         current: WoliFocusSession?,
         history: List<WoliFocusSession>,
+        pendingHardwareCommand: String?,
     ) {
         val root = JSONObject()
             .put("config", config.toJson())
             .put("history", history.toJsonArray())
+            .put("pendingHardwareCommand", pendingHardwareCommand ?: JSONObject.NULL)
 
         if (current != null) {
             root.put("current", current.toJson())

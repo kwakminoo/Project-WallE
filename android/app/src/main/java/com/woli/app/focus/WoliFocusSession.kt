@@ -1,6 +1,7 @@
 package com.woli.app.focus
 
 import android.content.Context
+import com.woli.app.device.WoliDeviceProtocol
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -50,6 +51,7 @@ object WoliFocusSessionController {
     private val _config = MutableStateFlow(WoliFocusSessionConfig())
     private val _current = MutableStateFlow<WoliFocusSession?>(null)
     private val _history = MutableStateFlow<List<WoliFocusSession>>(emptyList())
+    private val _pendingHardwareCommand = MutableStateFlow<String?>(null)
     private val lock = Any()
 
     @Volatile
@@ -61,6 +63,7 @@ object WoliFocusSessionController {
     val config: StateFlow<WoliFocusSessionConfig> = _config.asStateFlow()
     val current: StateFlow<WoliFocusSession?> = _current.asStateFlow()
     val history: StateFlow<List<WoliFocusSession>> = _history.asStateFlow()
+    val pendingHardwareCommand: StateFlow<String?> = _pendingHardwareCommand.asStateFlow()
 
     fun load(context: Context) {
         val appContext = context.applicationContext
@@ -89,6 +92,13 @@ object WoliFocusSessionController {
             _config.value = snapshot.config
             _current.value = activeSession
             _history.value = nextHistory
+            _pendingHardwareCommand.value = if (expiredSession != null) {
+                WoliDeviceProtocol.COMMAND_SESSION_END
+            } else if (activeSession != null) {
+                WoliDeviceProtocol.COMMAND_START
+            } else {
+                snapshot.pendingHardwareCommand.takeIf(::isFocusHardwareCommand)
+            }
             loaded = true
             persistLocked()
         }
@@ -115,6 +125,7 @@ object WoliFocusSessionController {
                 endsAtMillis = nowMillis + activeConfig.durationMinutes * 60_000L,
             )
             _current.value = session
+            _pendingHardwareCommand.value = WoliDeviceProtocol.COMMAND_START
             persistLocked()
             return session
         }
@@ -126,16 +137,18 @@ object WoliFocusSessionController {
     ): WoliFocusSession? {
         synchronized(lock) {
             val current = _current.value ?: return _history.value.firstOrNull()
-            val completed = current.copy(
-                completedAtMillis = nowMillis,
-                exitReason = reason,
-            )
-            _current.value = null
-            _history.update { previous ->
-                (listOf(completed) + previous.filterNot { it.id == completed.id }).take(MAX_HISTORY)
-            }
-            persistLocked()
-            return completed
+            return completeLocked(current, reason, nowMillis)
+        }
+    }
+
+    /** Completes only a live session so competing timer paths cannot finish it twice. */
+    fun completeIfActive(
+        reason: WoliFocusExitReason = WoliFocusExitReason.Completed,
+        nowMillis: Long = System.currentTimeMillis(),
+    ): WoliFocusSession? {
+        synchronized(lock) {
+            val current = _current.value ?: return null
+            return completeLocked(current, reason, nowMillis)
         }
     }
 
@@ -145,6 +158,17 @@ object WoliFocusSessionController {
                 current?.copy(handWarningCount = current.handWarningCount + 1)
             }
             persistLocked()
+        }
+    }
+
+    /** Records one already-edge-detected hand approach only while a live session remains. */
+    fun addHandWarningIfActive(nowMillis: Long = System.currentTimeMillis()): Boolean {
+        synchronized(lock) {
+            val current = _current.value ?: return false
+            if (current.remainingMillis(nowMillis) <= 0L) return false
+            _current.value = current.copy(handWarningCount = current.handWarningCount + 1)
+            persistLocked()
+            return true
         }
     }
 
@@ -162,11 +186,21 @@ object WoliFocusSessionController {
 
     fun latestCompleted(): WoliFocusSession? = _history.value.firstOrNull()
 
+    fun markHardwareCommandDelivered(command: String) {
+        synchronized(lock) {
+            if (_pendingHardwareCommand.value == command) {
+                _pendingHardwareCommand.value = null
+                persistLocked()
+            }
+        }
+    }
+
     fun resetForTest() {
         synchronized(lock) {
             _config.value = WoliFocusSessionConfig()
             _current.value = null
             _history.value = emptyList()
+            _pendingHardwareCommand.value = null
             persistenceContext = null
             loaded = false
         }
@@ -179,7 +213,51 @@ object WoliFocusSessionController {
             config = _config.value,
             current = _current.value,
             history = _history.value,
+            pendingHardwareCommand = _pendingHardwareCommand.value,
         )
+    }
+
+    private fun completeLocked(
+        current: WoliFocusSession,
+        reason: WoliFocusExitReason,
+        nowMillis: Long,
+    ): WoliFocusSession {
+        val completed = current.copy(
+            completedAtMillis = nowMillis,
+            exitReason = reason,
+        )
+        _current.value = null
+        _pendingHardwareCommand.value = when (reason) {
+            WoliFocusExitReason.Completed -> WoliDeviceProtocol.COMMAND_SESSION_END
+            WoliFocusExitReason.MissionUnlocked,
+            WoliFocusExitReason.UserQuit -> WoliDeviceProtocol.COMMAND_STOP
+        }
+        _history.update { previous ->
+            (listOf(completed) + previous.filterNot { it.id == completed.id }).take(MAX_HISTORY)
+        }
+        persistLocked()
+        return completed
+    }
+
+    private fun isFocusHardwareCommand(command: String?): Boolean {
+        return command == WoliDeviceProtocol.COMMAND_START ||
+            command == WoliDeviceProtocol.COMMAND_SESSION_END ||
+            command == WoliDeviceProtocol.COMMAND_STOP
+    }
+}
+
+/** Small edge gate: one warning for each false-to-true hand transition. */
+class WoliHandWarningEdgeGate(initialHandNear: Boolean) {
+    private var armed = !initialHandNear
+
+    fun onHandStatus(handNear: Boolean): Boolean {
+        if (!handNear) {
+            armed = true
+            return false
+        }
+        if (!armed) return false
+        armed = false
+        return true
     }
 }
 

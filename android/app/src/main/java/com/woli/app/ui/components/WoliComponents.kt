@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -15,10 +17,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -28,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -38,6 +49,41 @@ import com.woli.app.ui.theme.WoliCyan
 import com.woli.app.ui.theme.WoliMuted
 import com.woli.app.ui.theme.WoliText
 import com.woli.app.ui.theme.WoliYellow
+import kotlinx.coroutines.delay
+
+private const val EYE_BLINK_INTERVAL_MS = 4_000L
+private const val EYE_BLINK_DURATION_MS = 350L
+private const val EYE_GAP_RATIO = 0.79f
+
+data class FocusEyeMetrics(
+    val eyeSize: Dp,
+    val gap: Dp,
+    val stageHeight: Dp,
+)
+
+object FocusEyeLayout {
+    /** 기본 집중 화면 하단 칩 영역(14dp spacer + 칩 행) */
+    val defaultBottomChrome: Dp = 62.dp
+    const val fillFraction: Float = 0.7f
+}
+
+@Composable
+fun rememberFocusEyeMetrics(
+    bottomChrome: Dp = FocusEyeLayout.defaultBottomChrome,
+    fillFraction: Float = FocusEyeLayout.fillFraction,
+): FocusEyeMetrics {
+    val configuration = LocalConfiguration.current
+    val boundsWidth = configuration.screenWidthDp.dp - 48.dp
+    val boundsHeight = (configuration.screenHeightDp.dp - 48.dp - bottomChrome).coerceAtLeast(0.dp)
+    val eyeFromWidth = boundsWidth * fillFraction / (2f + EYE_GAP_RATIO)
+    val eyeFromHeight = boundsHeight * fillFraction
+    val eyeSize = minOf(eyeFromWidth, eyeFromHeight)
+    return FocusEyeMetrics(
+        eyeSize = eyeSize,
+        gap = eyeSize * EYE_GAP_RATIO,
+        stageHeight = boundsHeight,
+    )
+}
 
 enum class EyeMood {
     Idle,
@@ -45,6 +91,32 @@ enum class EyeMood {
     Alert,
     Angry,
     Complete,
+}
+
+@Composable
+fun WoliVoiceMicButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isListening: Boolean = false,
+    contentDescription: String = "음성 명령",
+) {
+    Box(
+        modifier = modifier
+            .size(72.dp)
+            .background(
+                color = if (isListening) WoliYellow.copy(alpha = 0.75f) else WoliYellow,
+                shape = CircleShape,
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Default.Mic,
+            contentDescription = contentDescription,
+            tint = WoliCyan,
+            modifier = Modifier.size(32.dp),
+        )
+    }
 }
 
 @Composable
@@ -97,31 +169,73 @@ fun WoliSecondaryButton(
 fun WoliEyes(
     mood: EyeMood,
     modifier: Modifier = Modifier,
-    eyeSize: Dp = 72.dp,
-    gap: Dp = 56.dp,
+    fillFraction: Float = FocusEyeLayout.fillFraction,
+    eyeSize: Dp? = null,
+    gap: Dp? = null,
     showWarningBadge: Boolean = false,
     mirrorAngry: Boolean = true,
 ) {
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(gap),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            EyeGlyph(mood = mood, size = eyeSize, flipHorizontal = false)
-            EyeGlyph(
-                mood = mood,
-                size = eyeSize,
-                flipHorizontal = mirrorAngry && mood == EyeMood.Angry,
-            )
+    var isBlinking by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(EYE_BLINK_INTERVAL_MS)
+            isBlinking = true
+            delay(EYE_BLINK_DURATION_MS)
+            isBlinking = false
         }
-        if (showWarningBadge) {
-            Canvas(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 4.dp, end = 4.dp)
-                    .size(88.dp),
+    }
+
+    val configuration = LocalConfiguration.current
+    BoxWithConstraints(modifier = modifier, contentAlignment = Alignment.Center) {
+        val resolvedEyeSize: Dp
+        val resolvedGap: Dp
+        if (eyeSize != null && gap != null) {
+            resolvedEyeSize = eyeSize
+            resolvedGap = gap
+        } else {
+            val boundsWidth = if (maxWidth != Dp.Infinity && maxWidth > 0.dp) {
+                maxWidth
+            } else {
+                configuration.screenWidthDp.dp - 48.dp
+            }
+            val boundsHeight = if (maxHeight != Dp.Infinity && maxHeight > 0.dp) {
+                maxHeight
+            } else {
+                configuration.screenHeightDp.dp - 48.dp
+            }
+            val eyeFromWidth = boundsWidth * fillFraction / (2f + EYE_GAP_RATIO)
+            val eyeFromHeight = boundsHeight * fillFraction
+            resolvedEyeSize = minOf(eyeFromWidth, eyeFromHeight)
+            resolvedGap = resolvedEyeSize * EYE_GAP_RATIO
+        }
+
+        Box(contentAlignment = Alignment.Center) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(resolvedGap),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                drawAngerVeinMark(color = WoliAnger)
+                EyeGlyph(
+                    mood = mood,
+                    size = resolvedEyeSize,
+                    flipHorizontal = false,
+                    isBlinking = isBlinking,
+                )
+                EyeGlyph(
+                    mood = mood,
+                    size = resolvedEyeSize,
+                    flipHorizontal = mirrorAngry && mood == EyeMood.Angry,
+                    isBlinking = isBlinking,
+                )
+            }
+            if (showWarningBadge) {
+                Canvas(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 4.dp, end = 4.dp)
+                        .size(resolvedEyeSize * 0.76f),
+                ) {
+                    drawAngerVeinMark(color = WoliAnger)
+                }
             }
         }
     }
@@ -132,10 +246,16 @@ private fun EyeGlyph(
     mood: EyeMood,
     size: Dp,
     flipHorizontal: Boolean = false,
+    isBlinking: Boolean = false,
 ) {
     Canvas(modifier = Modifier.size(size)) {
         val w = size.toPx()
         val cell = (w * 0.075f).coerceIn(4f, 14f)
+        val blinkColor = if (mood == EyeMood.Angry) WoliAnger else WoliCyan
+        if (isBlinking) {
+            drawPixelBlinkLine(center = center, halfWidth = w * 0.42f, color = blinkColor, cell = cell)
+            return@Canvas
+        }
         when (mood) {
             // 기획 시나리오: LED 도트 원형 눈
             EyeMood.Idle, EyeMood.Alert -> {
@@ -232,6 +352,19 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPixelHalfCircle
             x += cell
         }
         y += cell
+    }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPixelBlinkLine(
+    center: Offset,
+    halfWidth: Float,
+    color: Color,
+    cell: Float,
+) {
+    var x = center.x - halfWidth
+    while (x <= center.x + halfWidth) {
+        drawPixelDot(x, center.y - cell * 0.5f, cell, color)
+        x += cell
     }
 }
 

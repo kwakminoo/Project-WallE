@@ -33,6 +33,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -43,6 +44,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -65,8 +69,10 @@ import com.woli.app.device.WoliDeviceState
 import com.woli.app.device.WoliDiscoveredDevice
 import com.woli.app.focus.WoliFocusSessionConfig
 import com.woli.app.focus.WoliFocusSessionController
+import com.woli.app.focus.FocusNotificationPermissionItem
 import com.woli.app.focus.WoliFocusGuardAccess
 import com.woli.app.focus.WoliFocusGuardService
+import com.woli.app.focus.WoliFocusNotificationPermissions
 import com.woli.app.notification.WoliNotificationAccess
 import com.woli.app.ui.components.ShellHintBar
 import com.woli.app.ui.components.WoliPrimaryButton
@@ -266,12 +272,7 @@ fun DeviceConnectScreen(onBack: () -> Unit, onNext: () -> Unit) {
                 device = device,
                 connected = deviceState.connectedDevice?.id == device.id,
                 onClick = {
-                    val result = if (device.simulated) {
-                        WoliDeviceCenter.connectSimulated()
-                        WoliDeviceActionResult.Started
-                    } else {
-                        bleClient.connect(device)
-                    }
+                    val result = bleClient.connect(device)
                     actionMessage = result.userMessage()
                 },
             )
@@ -291,11 +292,8 @@ fun DeviceConnectScreen(onBack: () -> Unit, onNext: () -> Unit) {
         )
         Spacer(modifier = Modifier.height(10.dp))
         WoliPrimaryButton(
-            text = if (deviceState.isConnected) "다음" else "시뮬레이션 연결 후 다음",
-            onClick = {
-                if (!deviceState.isConnected) WoliDeviceCenter.connectSimulated()
-                onNext()
-            },
+            text = "다음",
+            onClick = onNext,
         )
     }
 }
@@ -604,25 +602,12 @@ fun FocusNotificationPermissionScreen(
     onNext: () -> Unit,
 ) {
     val context = LocalContext.current
-    var accessEnabled by remember { mutableStateOf(WoliNotificationAccess.isEnabled(context)) }
-    var phonePermissionGranted by remember { mutableStateOf(WoliCallAccess.isGranted(context)) }
-    var contactPermissionGranted by remember { mutableStateOf(WoliContactsAccess.canReadContacts(context)) }
-    var callerIdPermissionGranted by remember { mutableStateOf(WoliCallAccess.canReadCallerId(context)) }
-    var callControlGranted by remember { mutableStateOf(WoliCallActionController.canControlCalls(context)) }
-    var postNotificationGranted by remember { mutableStateOf(WoliFocusGuardAccess.canPostNotifications(context)) }
-    var batteryOptimizationIgnored by remember {
-        mutableStateOf(WoliFocusGuardAccess.isIgnoringBatteryOptimizations(context))
-    }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var permissionState by remember { mutableStateOf(WoliFocusNotificationPermissions.read(context)) }
     var actionMessage by remember { mutableStateOf<String?>(null) }
 
     fun refreshAccessState() {
-        accessEnabled = WoliNotificationAccess.isEnabled(context)
-        phonePermissionGranted = WoliCallAccess.isGranted(context)
-        contactPermissionGranted = WoliContactsAccess.canReadContacts(context)
-        callerIdPermissionGranted = WoliCallAccess.canReadCallerId(context)
-        callControlGranted = WoliCallActionController.canControlCalls(context)
-        postNotificationGranted = WoliFocusGuardAccess.canPostNotifications(context)
-        batteryOptimizationIgnored = WoliFocusGuardAccess.isIgnoringBatteryOptimizations(context)
+        permissionState = WoliFocusNotificationPermissions.read(context)
     }
 
     fun openSettings(intentProvider: () -> android.content.Intent, successMessage: String) {
@@ -633,31 +618,33 @@ fun FocusNotificationPermissionScreen(
             }
     }
 
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                refreshAccessState()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(permissionState.allGranted) {
+        if (permissionState.allGranted) {
+            onNext()
+        }
+    }
+
     val postNotificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        postNotificationGranted = granted || WoliFocusGuardAccess.canPostNotifications(context)
-    }
-    val phonePermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        phonePermissionGranted = granted
-    }
+    ) { refreshAccessState() }
+    val phoneBundlePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+    ) { refreshAccessState() }
     val contactPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        contactPermissionGranted = granted
-    }
-    val callerIdPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        callerIdPermissionGranted = granted
-    }
-    val callControlPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        callControlGranted = granted
-    }
+    ) { refreshAccessState() }
+
+    val missingItems = permissionState.missingItems
 
     Column(
         modifier = Modifier
@@ -672,169 +659,115 @@ fun FocusNotificationPermissionScreen(
                 .verticalScroll(rememberScrollState()),
         ) {
             Text(
-                "중요 알림을 월이가 읽어주려면 Android 알림 접근 권한이 필요합니다.",
+                "중요 알림과 전화를 월이가 전달하려면 아래 권한이 필요합니다.",
                 color = WoliMuted,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
                 modifier = Modifier.padding(top = 8.dp, bottom = 22.dp),
             )
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF1C1C1E), RoundedCornerShape(18.dp))
-                    .padding(18.dp),
-            ) {
-                PermissionStatusRow(
-                    title = "알림 접근",
-                    value = if (accessEnabled) "허용됨" else "권한 필요",
-                    active = accessEnabled,
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-                PermissionStatusRow(
-                    title = "포그라운드 알림",
-                    value = if (postNotificationGranted) "허용됨" else "Android 13+ 권한 필요",
-                    active = postNotificationGranted,
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-                PermissionStatusRow(
-                    title = "배터리 제한",
-                    value = if (batteryOptimizationIgnored) "예외 적용됨" else "제조사 절전 정책 확인 필요",
-                    active = batteryOptimizationIgnored,
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-                PermissionStatusRow(
-                    title = "전화 감지",
-                    value = if (phonePermissionGranted) "허용됨" else "권한 필요",
-                    active = phonePermissionGranted,
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-                PermissionStatusRow(
-                    title = "연락처 읽기",
-                    value = if (contactPermissionGranted) "허용됨" else "중요 연락처 선택 권한",
-                    active = contactPermissionGranted,
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-                PermissionStatusRow(
-                    title = "발신자 식별",
-                    value = if (callerIdPermissionGranted) "허용됨" else "선택 권한",
-                    active = callerIdPermissionGranted,
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-                PermissionStatusRow(
-                    title = "전화 제어",
-                    value = if (callControlGranted) "허용됨" else "선택 권한",
-                    active = callControlGranted,
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-                PermissionStatusRow(
-                    title = "음성 조작",
-                    value = "답장 · 보내기 · 취소 · 전화 제어 명령",
-                    active = true,
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-                PermissionStatusRow(
-                    title = "검증",
-                    value = "앱별 답장 성공 이력 대시보드",
-                    active = true,
-                )
+            if (missingItems.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF1C1C1E), RoundedCornerShape(18.dp))
+                        .padding(18.dp),
+                ) {
+                    missingItems.forEachIndexed { index, item ->
+                        if (index > 0) {
+                            Spacer(modifier = Modifier.height(14.dp))
+                        }
+                        PermissionStatusRow(
+                            title = item.statusTitle(),
+                            value = item.statusDescription(),
+                            active = false,
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(18.dp))
             }
-            Spacer(modifier = Modifier.height(18.dp))
             ShellHintBar(
                 text = actionMessage
-                    ?: "알림·전화는 저장된 중요 연락처와 우선 매칭하고, 음성 명령으로 답장 전송과 전화 제어를 시도합니다.",
+                    ?: "설정 화면에서 권한을 허용한 뒤 이 화면으로 돌아오면 자동으로 확인됩니다.",
             )
             Spacer(modifier = Modifier.height(18.dp))
-            if (!postNotificationGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                WoliSecondaryButton(
-                    text = "포그라운드 알림 권한 허용",
+            missingItems.forEach { item ->
+                WoliPrimaryButton(
+                    text = item.buttonLabel(),
                     onClick = {
-                        postNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        when (item) {
+                            FocusNotificationPermissionItem.NotificationAccess -> {
+                                openSettings(
+                                    intentProvider = WoliNotificationAccess::settingsIntent,
+                                    successMessage = "알림 접근 설정에서 월이 서비스를 허용하세요.",
+                                )
+                            }
+                            FocusNotificationPermissionItem.PostNotifications -> {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    postNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                            }
+                            FocusNotificationPermissionItem.BatteryOptimization -> {
+                                openSettings(
+                                    intentProvider = WoliFocusGuardAccess::batteryOptimizationSettingsIntent,
+                                    successMessage = "배터리 최적화 설정에서 월이를 제한 없음으로 설정하세요.",
+                                )
+                            }
+                            FocusNotificationPermissionItem.PhoneBundle -> {
+                                phoneBundlePermissionLauncher.launch(
+                                    WoliFocusNotificationPermissions.phoneRuntimePermissions(),
+                                )
+                            }
+                            FocusNotificationPermissionItem.Contacts -> {
+                                contactPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+                            }
+                        }
                     },
                 )
                 Spacer(modifier = Modifier.height(10.dp))
             }
-            WoliSecondaryButton(
-                text = if (batteryOptimizationIgnored) "배터리 설정 다시 확인" else "배터리 최적화 설정 열기",
-                onClick = {
-                    openSettings(
-                        intentProvider = WoliFocusGuardAccess::batteryOptimizationSettingsIntent,
-                        successMessage = "배터리 최적화 설정에서 월이를 제한 없음으로 설정하세요.",
-                    )
-                },
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            if (!phonePermissionGranted) {
+            if (missingItems.isNotEmpty()) {
                 WoliSecondaryButton(
-                    text = "전화 감지 권한 허용",
-                    onClick = {
-                        phonePermissionLauncher.launch(Manifest.permission.READ_PHONE_STATE)
-                    },
+                    text = "앱별 검증 열기",
+                    onClick = onOpenDiagnostics,
                 )
                 Spacer(modifier = Modifier.height(10.dp))
             }
-            if (!contactPermissionGranted) {
-                WoliSecondaryButton(
-                    text = "연락처 권한 허용",
-                    onClick = {
-                        contactPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
-                    },
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-            }
-            if (!callerIdPermissionGranted) {
-                WoliSecondaryButton(
-                    text = "발신자 식별 권한 허용",
-                    onClick = {
-                        callerIdPermissionLauncher.launch(Manifest.permission.READ_CALL_LOG)
-                    },
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-            }
-            if (!callControlGranted) {
-                WoliSecondaryButton(
-                    text = "전화 제어 권한 허용",
-                    onClick = {
-                        callControlPermissionLauncher.launch(Manifest.permission.ANSWER_PHONE_CALLS)
-                    },
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-            }
-            WoliSecondaryButton(
-                text = "알림 접근 설정 열기",
-                onClick = {
-                    openSettings(
-                        intentProvider = WoliNotificationAccess::settingsIntent,
-                        successMessage = "알림 접근 설정에서 월이 서비스를 허용하세요.",
-                    )
-                },
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            WoliSecondaryButton(
-                text = "앱 알림 설정 열기",
-                onClick = {
-                    openSettings(
-                        intentProvider = { WoliFocusGuardAccess.appNotificationSettingsIntent(context) },
-                        successMessage = "앱 알림 설정에서 월이 알림을 허용하세요.",
-                    )
-                },
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            WoliSecondaryButton(
-                text = "상태 새로고침",
-                onClick = ::refreshAccessState,
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            WoliSecondaryButton(
-                text = "앱별 검증 열기",
-                onClick = onOpenDiagnostics,
-            )
-            Spacer(modifier = Modifier.height(10.dp))
         }
         Spacer(modifier = Modifier.height(10.dp))
         WoliPrimaryButton(
-            text = if (accessEnabled) "다음" else "권한 없이 계속",
+            text = "권한 없이 계속",
             onClick = onNext,
         )
+    }
+}
+
+private fun FocusNotificationPermissionItem.statusTitle(): String {
+    return when (this) {
+        FocusNotificationPermissionItem.NotificationAccess -> "알림 접근"
+        FocusNotificationPermissionItem.PostNotifications -> "알림 표시"
+        FocusNotificationPermissionItem.BatteryOptimization -> "배터리 제한"
+        FocusNotificationPermissionItem.PhoneBundle -> "전화·발신자·제어"
+        FocusNotificationPermissionItem.Contacts -> "연락처 읽기"
+    }
+}
+
+private fun FocusNotificationPermissionItem.statusDescription(): String {
+    return when (this) {
+        FocusNotificationPermissionItem.NotificationAccess -> "알림 접근 권한 필요"
+        FocusNotificationPermissionItem.PostNotifications -> "Android 13+ 알림 표시 권한 필요"
+        FocusNotificationPermissionItem.BatteryOptimization -> "제조사 절전 정책 확인 필요"
+        FocusNotificationPermissionItem.PhoneBundle -> "전화 감지·발신자 식별·전화 제어 권한 필요"
+        FocusNotificationPermissionItem.Contacts -> "중요 연락처 선택 권한 필요"
+    }
+}
+
+private fun FocusNotificationPermissionItem.buttonLabel(): String {
+    return when (this) {
+        FocusNotificationPermissionItem.NotificationAccess -> "알림 접근 설정 열기"
+        FocusNotificationPermissionItem.PostNotifications -> "알림 표시 권한 허용"
+        FocusNotificationPermissionItem.BatteryOptimization -> "배터리 최적화 설정 열기"
+        FocusNotificationPermissionItem.PhoneBundle -> "전화·발신자·제어 권한 허용"
+        FocusNotificationPermissionItem.Contacts -> "연락처 권한 허용"
     }
 }
 
@@ -944,9 +877,7 @@ fun MountGuideScreen(onBack: () -> Unit, onStartFocus: () -> Unit) {
         WoliSecondaryButton(
             text = "거치 확인 및 잠금",
             onClick = {
-                WoliDeviceCenter.setMounted(true)
                 val result = bleClient.sendCommand(WoliDeviceProtocol.COMMAND_LOCK)
-                if (result.isSuccess) WoliDeviceCenter.setLocked(true)
                 actionMessage = result.userMessage()
             },
         )
@@ -954,9 +885,11 @@ fun MountGuideScreen(onBack: () -> Unit, onStartFocus: () -> Unit) {
         WoliPrimaryButton(
             text = "집중 모드 시작",
             onClick = {
-                WoliDeviceCenter.setMounted(true)
-                WoliDeviceCenter.setLocked(true)
-                bleClient.sendCommand(WoliDeviceProtocol.COMMAND_START)
+                val alreadyActive = WoliFocusSessionController.current.value?.isActive == true
+                WoliFocusSessionController.startIfNeeded(System.currentTimeMillis())
+                if (!alreadyActive) {
+                    bleClient.sendPendingFocusCommand()
+                }
                 WoliFocusGuardService.start(context)
                 onStartFocus()
             },
@@ -1004,9 +937,8 @@ fun HardwareDiagnosticsScreen(onBack: () -> Unit) {
         }
     }
 
-    fun sendCommand(label: String, command: String, onSuccess: () -> Unit = {}) {
+    fun sendCommand(label: String, command: String) {
         val result = bleClient.sendCommand(command)
-        if (result.isSuccess) onSuccess()
         actionMessage = "$label: ${result.userMessage()}"
     }
 
@@ -1027,6 +959,23 @@ fun HardwareDiagnosticsScreen(onBack: () -> Unit) {
         ) {
             HardwareStatusCard(deviceState = deviceState)
             Spacer(modifier = Modifier.height(14.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF1C1C1E), RoundedCornerShape(16.dp))
+                    .padding(14.dp),
+            ) {
+                Text("최근 BLE 기록", color = WoliText, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Status: ${deviceState.lastStatusPayload ?: "아직 수신 없음"}", color = WoliMuted, fontSize = 12.sp)
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    "명령: ${deviceState.lastCommand ?: "없음"} · ${deviceState.lastCommandResult ?: "결과 없음"}",
+                    color = WoliMuted,
+                    fontSize = 12.sp,
+                )
+            }
+            Spacer(modifier = Modifier.height(14.dp))
             WoliSecondaryButton(
                 text = if (hasBlePermissions) "BLE 기기 다시 검색" else "Bluetooth 권한 허용 및 검색",
                 onClick = ::requestOrScan,
@@ -1034,15 +983,10 @@ fun HardwareDiagnosticsScreen(onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(10.dp))
             WoliDeviceCenter.allKnownDevices().forEach { device ->
                 DeviceRow(
-                    device = device,
-                    connected = deviceState.connectedDevice?.id == device.id,
-                    onClick = {
-                        val result = if (device.simulated) {
-                            WoliDeviceCenter.connectSimulated()
-                            WoliDeviceActionResult.Started
-                        } else {
-                            bleClient.connect(device)
-                        }
+                device = device,
+                connected = deviceState.connectedDevice?.id == device.id,
+                onClick = {
+                        val result = bleClient.connect(device)
                         actionMessage = result.userMessage()
                     },
                 )
@@ -1067,18 +1011,28 @@ fun HardwareDiagnosticsScreen(onBack: () -> Unit) {
                 WoliSecondaryButton(
                     text = "잠금 테스트",
                     onClick = {
-                        sendCommand("LOCK", WoliDeviceProtocol.COMMAND_LOCK) {
-                            WoliDeviceCenter.setLocked(true)
-                        }
+                        sendCommand("LOCK", WoliDeviceProtocol.COMMAND_LOCK)
                     },
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 WoliSecondaryButton(
                     text = "해제 테스트",
                     onClick = {
-                        sendCommand("UNLOCK", WoliDeviceProtocol.COMMAND_UNLOCK) {
-                            WoliDeviceCenter.setLocked(false)
-                        }
+                        sendCommand("UNLOCK", WoliDeviceProtocol.COMMAND_UNLOCK)
+                    },
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                WoliSecondaryButton(
+                    text = "집중 시작 테스트",
+                    onClick = {
+                        sendCommand("START", WoliDeviceProtocol.COMMAND_START)
+                    },
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                WoliSecondaryButton(
+                    text = "정상 종료 테스트",
+                    onClick = {
+                        sendCommand("SESSION_END", WoliDeviceProtocol.COMMAND_SESSION_END)
                     },
                 )
             }
@@ -1111,29 +1065,31 @@ fun HardwareDiagnosticsScreen(onBack: () -> Unit) {
                 )
             }
             Spacer(modifier = Modifier.height(14.dp))
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF1C1C1E), RoundedCornerShape(16.dp))
-                    .padding(14.dp),
-            ) {
-                Text("센서 시뮬레이션", color = WoliText, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(10.dp))
-                WoliSecondaryButton(
-                    text = if (deviceState.isMounted) "거치 해제 상태로 전환" else "거치 감지 상태로 전환",
-                    onClick = {
-                        WoliDeviceCenter.setMounted(!deviceState.isMounted)
-                        actionMessage = "거치 센서 시뮬레이션을 변경했습니다."
-                    },
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                WoliSecondaryButton(
-                    text = if (deviceState.isHandNear) "손 접근 해제 상태로 전환" else "손 접근 감지 상태로 전환",
-                    onClick = {
-                        WoliDeviceCenter.setHandNear(!deviceState.isHandNear)
-                        actionMessage = "손 접근 센서 시뮬레이션을 변경했습니다."
-                    },
-                )
+            if (deviceState.connectedDevice?.simulated == true) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF1C1C1E), RoundedCornerShape(16.dp))
+                        .padding(14.dp),
+                ) {
+                    Text("센서 시뮬레이션", color = WoliText, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    WoliSecondaryButton(
+                        text = if (deviceState.isMounted) "거치 해제 상태로 전환" else "거치 감지 상태로 전환",
+                        onClick = {
+                            WoliDeviceCenter.setMounted(!deviceState.isMounted)
+                            actionMessage = "거치 센서 시뮬레이션을 변경했습니다."
+                        },
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    WoliSecondaryButton(
+                        text = if (deviceState.isHandNear) "손 접근 해제 상태로 전환" else "손 접근 감지 상태로 전환",
+                        onClick = {
+                            WoliDeviceCenter.setHandNear(!deviceState.isHandNear)
+                            actionMessage = "손 접근 센서 시뮬레이션을 변경했습니다."
+                        },
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(14.dp))
             ShellHintBar(text = actionMessage)
@@ -1143,6 +1099,7 @@ fun HardwareDiagnosticsScreen(onBack: () -> Unit) {
 
 @Composable
 private fun HardwareStatusCard(deviceState: WoliDeviceState) {
+    val device = deviceState.connectedDevice
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1158,6 +1115,24 @@ private fun HardwareStatusCard(deviceState: WoliDeviceState) {
         )
         Spacer(modifier = Modifier.height(12.dp))
         PermissionStatusRow(
+            title = "기기명",
+            value = device?.name ?: "미연결",
+            active = device != null,
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        PermissionStatusRow(
+            title = "주소",
+            value = device?.id ?: "미수신",
+            active = device != null,
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        PermissionStatusRow(
+            title = "RSSI",
+            value = device?.rssi?.let { "$it dBm" } ?: "미수신",
+            active = device?.rssi != null,
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        PermissionStatusRow(
             title = "거치 센서",
             value = if (deviceState.isMounted) "스마트폰 거치됨" else "거치 대기",
             active = deviceState.isMounted,
@@ -1167,6 +1142,12 @@ private fun HardwareStatusCard(deviceState: WoliDeviceState) {
             title = "잠금 서보",
             value = if (deviceState.isLocked) "잠금 위치" else "해제 위치",
             active = deviceState.isLocked,
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        PermissionStatusRow(
+            title = "집중 세션",
+            value = if (deviceState.isSessionActive) "진행 중" else "대기",
+            active = deviceState.isSessionActive,
         )
         Spacer(modifier = Modifier.height(12.dp))
         PermissionStatusRow(
@@ -1188,7 +1169,8 @@ private fun WoliDeviceConnectionState.displayLabel(): String {
         WoliDeviceConnectionState.Disconnected -> "연결 안 됨"
         WoliDeviceConnectionState.Scanning -> "검색 중"
         WoliDeviceConnectionState.Connecting -> "연결 중"
-        WoliDeviceConnectionState.Connected -> "실기기 연결됨"
+        WoliDeviceConnectionState.DiscoveringServices -> "서비스 준비 중"
+        WoliDeviceConnectionState.Ready -> "실기기 연결됨"
         WoliDeviceConnectionState.Simulated -> "시뮬레이션 연결됨"
         WoliDeviceConnectionState.Error -> "오류"
     }

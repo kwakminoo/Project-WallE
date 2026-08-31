@@ -73,6 +73,7 @@ Project-WallE/
 ├── docs/RELEASE_CHECKLIST.md # APK/펌웨어 릴리즈 전 검증 항목
 ├── docs/PRIVACY_NOTICE.md    # 개인정보·권한 사용 안내
 ├── docs/DEMO_CHECKLIST.md    # 3-5분 발표/시연 순서
+├── docs/ESP32_BLE_HARDWARE_TEST.md # ESP32 BLE 실기기·nRF Connect 검증
 ├── 디지털_디톡스_로봇_월이_기획안.md
 ├── SW 예 상시나리오.png
 ├── HW 구상도.png
@@ -131,15 +132,15 @@ sdk.dir=/Users/<YOU>/Library/Android/sdk
 | 생명주기 | `lifecycle-runtime-ktx`, `lifecycle-viewmodel-compose` |
 | 로컬 저장 | SharedPreferences 기반 집중 세션, 중요 연락처, 답장 이력 |
 | 비동기 | `kotlinx-coroutines-android` |
-| BLE | Android BLE scan/connect + WOLI GATT command/status/calibration |
+| BLE | Android BLE scan/connect + WOLI GATT command/status/session/calibration |
 
 설치/동기화:
 
 ```bash
 cd android
-./gradlew.bat dependencies
-./gradlew.bat :app:assembleDebug
-./gradlew.bat :app:testDebugUnitTest
+.\gradlew.bat :app:testDebugUnitTest
+.\gradlew.bat :app:assembleDebug
+.\gradlew.bat lint
 ```
 
 Android Studio를 쓰는 경우:
@@ -160,7 +161,7 @@ Android Studio를 쓰는 경우:
 - 전화 수신 상태 감지, 발신자 best-effort 식별, TTS 안내, 받기/거절 API 시도
 - Foreground Service 기반 백그라운드 집중 보호
 - Android 13+ 포그라운드 알림 권한과 배터리 최적화 상태 점검
-- BLE 월이 기기 검색/연결, 시뮬레이션 연결, lock/unlock/status/calibration 명령
+- BLE 월이 기기 검색/연결, 시뮬레이션 연결, status 동기화, `START`/`SESSION_END`/잠금/캘리브레이션 명령
 - 설정 화면의 하드웨어 검증 도구
 - 거치/잠금/손 접근 상태 반영
 - 리듬/호흡/기억력 미션
@@ -201,8 +202,12 @@ pio device monitor
 | Service UUID | `7e7a0001-1f5f-4c2b-9b6f-2d1b7f4f0100` |
 | Command UUID | `7e7a0002-1f5f-4c2b-9b6f-2d1b7f4f0100` |
 | Status UUID | `7e7a0003-1f5f-4c2b-9b6f-2d1b7f4f0100` |
-| Commands | `LOCK`, `UNLOCK`, `START`, `STOP`, `STATUS`, `CAL_LOCK=90`, `CAL_UNLOCK=10` |
-| Status payload | `mount=1;lock=0;hand=0;battery=100` |
+| Commands | `LOCK`, `UNLOCK`, `START`, `SESSION_END`, `STOP`, `STATUS`, `CAL_LOCK=90`, `CAL_UNLOCK=10` |
+| Status payload | `mount=1;lock=1;hand=0;battery=100;session=1` |
+
+`START`는 집중 세션과 잠금을 활성화하고, 정상 완료의 `SESSION_END`는 세션을 비활성화하고 잠금을 풉니다. Status Characteristic은 READ + NOTIFY이며 `session`은 집중 세션 활성 상태(0/1)입니다.
+
+ESP32 핀 연결, Android 실기기 절차, 재연결, nRF Connect 분리 검증은 [ESP32 BLE 실기기 검증](docs/ESP32_BLE_HARDWARE_TEST.md)을 따르세요.
 
 ### 3) (선택) 설계 도구
 
@@ -227,10 +232,11 @@ pio device monitor
 - 일반 메신저 알림은 제외되고 중요 연락처/긴급 알림만 TTS 안내되는지 확인
 - Android 제조사별 발신자 번호 전달, 전화 받기/거절 API 허용 여부 확인
 - 실제 서보 각도, 리미트 스위치, 손 접근 센서 핀/전기적 안정성 캘리브레이션
+- 실제 BLE `START`/`SESSION_END`, Status Notify, 연결 해제 후 상태 재동기화 검증
 - Foreground Service 알림 권한과 배터리 최적화 예외 동작 확인
 - 최신 UI 상태에 맞춘 스크린샷 재촬영
 
-자세한 제출 전 점검은 [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md), 알림 판단 기준은 [`docs/NOTIFICATION_POLICY.md`](docs/NOTIFICATION_POLICY.md), 개인정보 안내는 [`docs/PRIVACY_NOTICE.md`](docs/PRIVACY_NOTICE.md), 시연 흐름은 [`docs/DEMO_CHECKLIST.md`](docs/DEMO_CHECKLIST.md)를 확인하세요.
+자세한 제출 전 점검은 [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md), [ESP32 BLE 실기기 검증](docs/ESP32_BLE_HARDWARE_TEST.md), 알림 판단 기준은 [`docs/NOTIFICATION_POLICY.md`](docs/NOTIFICATION_POLICY.md), 개인정보 안내는 [`docs/PRIVACY_NOTICE.md`](docs/PRIVACY_NOTICE.md), 시연 흐름은 [`docs/DEMO_CHECKLIST.md`](docs/DEMO_CHECKLIST.md)를 확인하세요.
 
 ---
 

@@ -6,8 +6,9 @@
  * - command  7e7a0002-1f5f-4c2b-9b6f-2d1b7f4f0100  WRITE
  * - status   7e7a0003-1f5f-4c2b-9b6f-2d1b7f4f0100  READ/NOTIFY
  *
- * Status payload: mount=1;lock=0;hand=0;battery=100
- * Commands: LOCK, UNLOCK, START, STOP, STATUS, CAL_LOCK=90, CAL_UNLOCK=10
+ * Status payload: mount=1;lock=0;hand=0;battery=100;session=0
+ * Commands: LOCK, UNLOCK, START, SESSION_END, STOP, STATUS, CAL_LOCK=90,
+ * CAL_UNLOCK=10
  */
 #include <Arduino.h>
 #include <ESP32Servo.h>
@@ -81,6 +82,12 @@ struct DebouncedInput {
     return activeLow ? !high : high;
   }
 
+  void syncInitial() {
+    stableValue = readRaw();
+    candidateValue = stableValue;
+    candidateCount = SENSOR_STABLE_SAMPLES;
+  }
+
   bool update() {
     const bool next = readRaw();
     if (next == candidateValue) {
@@ -107,6 +114,7 @@ static DebouncedInput handSensor(HAND_SENSOR_PIN, HAND_SENSOR_ACTIVE_LOW == 1);
 static bool locked = false;
 static bool mounted = false;
 static bool handNear = false;
+static bool sessionActive = false;
 static uint8_t batteryPercent = 100;
 static int lockDegrees = LOCK_SERVO_DEGREES;
 static int unlockDegrees = UNLOCK_SERVO_DEGREES;
@@ -125,10 +133,11 @@ static String statusPayload() {
   return String("mount=") + (mounted ? "1" : "0") +
          ";lock=" + (locked ? "1" : "0") +
          ";hand=" + (handNear ? "1" : "0") +
-         ";battery=" + String(batteryPercent);
+         ";battery=" + String(batteryPercent) +
+         ";session=" + (sessionActive ? "1" : "0");
 }
 
-static void notifyStatus() {
+static void notifyStatus(bool logStatus = true) {
   if (statusCharacteristic == nullptr) {
     return;
   }
@@ -136,18 +145,35 @@ static void notifyStatus() {
   batteryPercent = readBatteryPercent();
   const String payload = statusPayload();
   statusCharacteristic->setValue(payload.c_str());
-  statusCharacteristic->notify();
-  Serial.printf("[WOLI] status %s\n", payload.c_str());
+  if (statusCharacteristic->getSubscribedCount() > 0) {
+    statusCharacteristic->notify();
+  }
+  if (logStatus) {
+    Serial.printf("[WOLI][STATUS] %s\n", payload.c_str());
+  }
 }
 
 static void applyServoAngle(int angle) {
   lockServo.write(constrain(angle, 0, 180));
 }
 
+static void setSessionActive(bool active) {
+  if (sessionActive == active) {
+    return;
+  }
+
+  sessionActive = active;
+  Serial.printf("[WOLI][SESSION] active=%d\n", sessionActive ? 1 : 0);
+}
+
 static void setLock(bool enable) {
+  const bool wasLocked = locked;
   locked = enable;
   applyServoAngle(enable ? lockDegrees : unlockDegrees);
-  Serial.printf("[WOLI] lock=%s angle=%d\n", locked ? "ON" : "OFF", enable ? lockDegrees : unlockDegrees);
+  if (wasLocked != locked) {
+    Serial.printf("[WOLI][LOCK] %d -> %d angle=%d\n", wasLocked ? 1 : 0,
+                  locked ? 1 : 0, enable ? lockDegrees : unlockDegrees);
+  }
   notifyStatus();
 }
 
@@ -158,7 +184,7 @@ static bool updateCalibration(const String &command, const char *prefix, int *ta
 
   const int value = command.substring(strlen(prefix)).toInt();
   *target = constrain(value, 0, 180);
-  Serial.printf("[WOLI] calibration %s%d\n", prefix, *target);
+  Serial.printf("[WOLI][CAL] %s%d\n", prefix, *target);
   setLock(locked);
   return true;
 }
@@ -168,33 +194,69 @@ static void handleCommand(const String &rawCommand) {
   command.trim();
   command.toUpperCase();
 
-  Serial.printf("[WOLI] command=%s\n", command.c_str());
+  Serial.printf("[WOLI][CMD] %s\n", command.c_str());
 
-  if (command == "LOCK" || command == "START") {
+  if (command == "START") {
+    setSessionActive(true);
     setLock(true);
-  } else if (command == "UNLOCK" || command == "STOP") {
-    setLock(false);
-  } else if (command == "STATUS") {
-    notifyStatus();
-  } else if (updateCalibration(command, "CAL_LOCK=", &lockDegrees)) {
-    notifyStatus();
-  } else if (updateCalibration(command, "CAL_UNLOCK=", &unlockDegrees)) {
-    notifyStatus();
-  } else {
-    Serial.printf("[WOLI] unknown command=%s\n", command.c_str());
+    return;
   }
+  if (command == "SESSION_END") {
+    setSessionActive(false);
+    setLock(false);
+    return;
+  }
+  if (command == "STOP") {
+    setSessionActive(false);
+    setLock(false);
+    return;
+  }
+  if (command == "LOCK") {
+    setLock(true);
+    return;
+  }
+  if (command == "UNLOCK") {
+    setLock(false);
+    return;
+  }
+  if (command == "STATUS") {
+    notifyStatus();
+    return;
+  }
+  if (updateCalibration(command, "CAL_LOCK=", &lockDegrees)) {
+    return;
+  }
+  if (updateCalibration(command, "CAL_UNLOCK=", &unlockDegrees)) {
+    return;
+  }
+
+  Serial.printf("[WOLI][CMD] unknown=%s\n", command.c_str());
 }
 
 class CommandCallbacks : public NimBLECharacteristicCallbacks {
+ public:
   void onWrite(NimBLECharacteristic *characteristic) override {
     const std::string value = characteristic->getValue();
     handleCommand(String(value.c_str()));
   }
 };
 
+class ServerCallbacks : public NimBLEServerCallbacks {
+ public:
+  void onConnect(NimBLEServer *) override {
+    Serial.println("[WOLI][BLE] client connected");
+  }
+
+  void onDisconnect(NimBLEServer *) override {
+    Serial.println("[WOLI][BLE] client disconnected; advertising restart enabled");
+  }
+};
+
 static void setupBle() {
   NimBLEDevice::init(DEVICE_NAME);
   NimBLEServer *server = NimBLEDevice::createServer();
+  server->setCallbacks(new ServerCallbacks());
+  server->advertiseOnDisconnect(true);
   NimBLEService *service = server->createService(SERVICE_UUID);
 
   NimBLECharacteristic *commandCharacteristic = service->createCharacteristic(
@@ -212,51 +274,61 @@ static void setupBle() {
   NimBLEAdvertising *advertising = NimBLEDevice::getAdvertising();
   advertising->addServiceUUID(SERVICE_UUID);
   advertising->setScanResponse(true);
-  advertising->start();
-
-  Serial.println("[WOLI] BLE advertising started");
+  if (advertising->start()) {
+    Serial.println("[WOLI][BLE] advertising started");
+  } else {
+    Serial.println("[WOLI][BLE] advertising start failed");
+  }
 }
 
 void setup() {
   Serial.begin(115200);
+  Serial.println("[WOLI][BOOT] starting");
   pinMode(LIMIT_SWITCH_PIN, INPUT_PULLUP);
   pinMode(HAND_SENSOR_PIN, INPUT_PULLUP);
 #if BATTERY_ADC_PIN >= 0
   pinMode(BATTERY_ADC_PIN, INPUT);
 #endif
 
+  mountSensor.syncInitial();
+  handSensor.syncInitial();
+  mounted = mountSensor.stableValue;
+  handNear = handSensor.stableValue;
+  batteryPercent = readBatteryPercent();
+  Serial.printf("[WOLI][BOOT] mount=%d hand=%d battery=%u\n", mounted ? 1 : 0,
+                handNear ? 1 : 0, static_cast<unsigned>(batteryPercent));
+
   lockServo.setPeriodHertz(50);
   lockServo.attach(SERVO_PIN, SERVO_MIN_US, SERVO_MAX_US);
   setLock(false);
 
-  mounted = mountSensor.readRaw();
-  handNear = handSensor.readRaw();
   setupBle();
-  Serial.println("[WOLI] firmware ready");
+  Serial.println("[WOLI][BOOT] firmware ready");
 }
 
 void loop() {
-  bool changed = false;
-  changed = mountSensor.update() || changed;
-  changed = handSensor.update() || changed;
+  const bool mountChanged = mountSensor.update();
+  const bool handChanged = handSensor.update();
 
-  if (mountSensor.stableValue != mounted) {
+  if (mountChanged) {
+    const bool wasMounted = mounted;
     mounted = mountSensor.stableValue;
-    changed = true;
+    Serial.printf("[WOLI][MOUNT] %d -> %d\n", wasMounted ? 1 : 0, mounted ? 1 : 0);
   }
-  if (handSensor.stableValue != handNear) {
+  if (handChanged) {
+    const bool wasHandNear = handNear;
     handNear = handSensor.stableValue;
-    changed = true;
+    Serial.printf("[WOLI][HAND] %d -> %d\n", wasHandNear ? 1 : 0, handNear ? 1 : 0);
   }
-  if (changed) {
+  if (mountChanged || handChanged) {
     notifyStatus();
   }
 
   static uint32_t lastHeartbeat = 0;
   const uint32_t now = millis();
-  if (now - lastHeartbeat > STATUS_INTERVAL_MS) {
+  if (now - lastHeartbeat >= STATUS_INTERVAL_MS) {
     lastHeartbeat = now;
-    notifyStatus();
+    notifyStatus(false);
   }
 
   delay(25);

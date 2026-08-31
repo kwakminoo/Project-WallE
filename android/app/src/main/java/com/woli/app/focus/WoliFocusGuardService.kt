@@ -19,7 +19,6 @@ import com.woli.app.call.WoliCallCenter
 import com.woli.app.call.WoliCallMonitor
 import com.woli.app.call.WoliCallState
 import com.woli.app.device.WoliBleDeviceClient
-import com.woli.app.device.WoliDeviceCenter
 import com.woli.app.device.WoliDeviceProtocol
 import com.woli.app.navigation.Routes
 import com.woli.app.notification.WoliNotificationCenter
@@ -42,9 +41,11 @@ class WoliFocusGuardService : Service() {
     private var callMonitor: WoliCallMonitor? = null
     private var lastSpokenNotificationId: String? = null
     private var lastSpokenCallKey: String? = null
+    private var guardStarted = false
 
     override fun onCreate() {
         super.onCreate()
+        WoliFocusSessionController.load(applicationContext)
         ttsSpeaker = WoliTtsSpeaker(this)
         bleClient = WoliBleDeviceClient(this)
         callMonitor = WoliCallMonitor(applicationContext) { state, callerInfo ->
@@ -73,8 +74,11 @@ class WoliFocusGuardService : Service() {
     }
 
     private fun startGuard() {
+        if (guardStarted) return
+        guardStarted = true
         ensureNotificationChannel()
         startForegroundCompat()
+        bleClient?.sendPendingFocusCommand()
         if (WoliCallAccess.isGranted(this)) {
             callMonitor?.start()
         }
@@ -88,13 +92,12 @@ class WoliFocusGuardService : Service() {
                     stopSelf()
                     return@launch
                 }
-                if (active.remainingMillis(nowMillis) <= 0L) {
-                    WoliFocusSessionController.complete(WoliFocusExitReason.Completed, nowMillis)
-                    WoliDeviceCenter.setLocked(false)
-                    bleClient?.sendCommand(WoliDeviceProtocol.COMMAND_UNLOCK)
-                    ttsSpeaker?.speak("집중 시간이 완료되어 잠금을 해제합니다.")
-                    stopSelf()
-                    return@launch
+                if (active.remainingMillis(nowMillis) <= 0L && !uiActive.get()) {
+                    if (completeNormally(applicationContext, bleClient, nowMillis)) {
+                        ttsSpeaker?.speak("집중 시간이 완료되어 잠금을 해제합니다.")
+                        stopSelf()
+                        return@launch
+                    }
                 }
             }
         }
@@ -180,6 +183,20 @@ class WoliFocusGuardService : Service() {
         private const val CHANNEL_ID = "woli_focus_guard"
         private const val NOTIFICATION_ID = 1001
         private val uiActive = AtomicBoolean(false)
+
+        /** Shared normal-completion path for the UI timer, voice command, and background guard. */
+        fun completeNormally(
+            context: Context,
+            bleClient: WoliBleDeviceClient? = null,
+            nowMillis: Long = System.currentTimeMillis(),
+        ): Boolean {
+            if (WoliFocusSessionController.completeIfActive(WoliFocusExitReason.Completed, nowMillis) == null) {
+                return false
+            }
+            (bleClient ?: WoliBleDeviceClient(context)).sendPendingFocusCommand()
+            stop(context)
+            return true
+        }
 
         fun start(context: Context) {
             val intent = Intent(context, WoliFocusGuardService::class.java).setAction(ACTION_START)

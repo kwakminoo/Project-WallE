@@ -38,7 +38,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.woli.app.device.WoliDeviceCenter
+import com.woli.app.device.WoliBleDeviceClient
+import com.woli.app.device.WoliDeviceProtocol
 import com.woli.app.focus.WoliFocusExitReason
 import com.woli.app.focus.WoliFocusGuardService
 import com.woli.app.focus.WoliFocusSessionController
@@ -63,7 +64,7 @@ import kotlinx.coroutines.delay
  *
  * 기획안 4.5의 행동 마찰 장치. 노트가 레인을 따라 떨어지고, 판정선에 닿는 순간
  * 해당 레인을 탭한다. 목표 성공 수([WoliRhythmConfig.requiredHits])를 채우면
- * 물리 잠금을 풀고([WoliDeviceCenter.setLocked]) 집중 세션을 미션 해제로 종료한다.
+ * ESP32에 STOP을 보내 물리 잠금을 풀고 집중 세션을 미션 해제로 종료한다.
  * 실패치가 한도를 넘으면 라운드가 끝나고 다시 시도할 수 있다.
  *
  * 게임 규칙/판정은 [WoliRhythmEngine](순수 로직, 단위 테스트 대상)에 있고,
@@ -72,6 +73,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun RhythmMissionScreen(onSuccess: () -> Unit, onCancel: () -> Unit) {
     val context = LocalContext.current
+    val bleClient = remember(context) { WoliBleDeviceClient(context) }
     val haptics = LocalHapticFeedback.current
     val config = remember { WoliRhythmConfig.Moderate }
 
@@ -112,8 +114,9 @@ fun RhythmMissionScreen(onSuccess: () -> Unit, onCancel: () -> Unit) {
         when (phase) {
             RhythmPhase.CLEARED -> {
                 WoliFocusSessionController.recordMissionAttempt(success = true)
-                WoliFocusSessionController.complete(WoliFocusExitReason.MissionUnlocked)
-                WoliDeviceCenter.setLocked(false)
+                if (WoliFocusSessionController.completeIfActive(WoliFocusExitReason.MissionUnlocked) != null) {
+                    bleClient.sendPendingFocusCommand()
+                }
                 WoliFocusGuardService.stop(context)
                 delay(900)
                 onSuccess()
