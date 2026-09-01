@@ -5,6 +5,7 @@ import android.content.Context
 import com.woli.app.call.WoliCallAccess
 import com.woli.app.call.WoliCallActionController
 import com.woli.app.contacts.WoliContactsAccess
+import com.woli.app.focus.hand.CameraHandApproachAccess
 import com.woli.app.notification.WoliNotificationAccess
 
 enum class FocusNotificationPermissionItem {
@@ -13,6 +14,7 @@ enum class FocusNotificationPermissionItem {
     BatteryOptimization,
     PhoneBundle,
     Contacts,
+    Camera,
 }
 
 data class FocusNotificationPermissionState(
@@ -23,6 +25,7 @@ data class FocusNotificationPermissionState(
     val contacts: Boolean,
     val callerId: Boolean,
     val callControl: Boolean,
+    val camera: Boolean,
 ) {
     val allGranted: Boolean
         get() = notificationAccess &&
@@ -44,6 +47,12 @@ data class FocusNotificationPermissionState(
             if (needsPhoneRuntimePermissions) add(FocusNotificationPermissionItem.PhoneBundle)
             if (!contacts) add(FocusNotificationPermissionItem.Contacts)
         }
+
+    /** Optional; focus can start without camera (hand approach disabled). */
+    val optionalMissingItems: List<FocusNotificationPermissionItem>
+        get() = buildList {
+            if (!camera) add(FocusNotificationPermissionItem.Camera)
+        }
 }
 
 object WoliFocusNotificationPermissions {
@@ -56,6 +65,7 @@ object WoliFocusNotificationPermissions {
             contacts = WoliContactsAccess.canReadContacts(context),
             callerId = WoliCallAccess.canReadCallerId(context),
             callControl = WoliCallActionController.canControlCalls(context),
+            camera = CameraHandApproachAccess.isGranted(context),
         )
     }
 

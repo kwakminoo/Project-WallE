@@ -18,6 +18,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import com.woli.app.focus.FocusHandApproachMonitor
 import com.woli.app.focus.WoliFocusNotificationPermissions
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
@@ -125,6 +126,21 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
 
     // 화면마다 SideEffect로 방향을 바꾸면 전환 중 충돌·재생성으로 집중모드가 복원된다.
     LockOrientation(activity, portrait = !FocusSessionNav.isLandscapeRoute(currentRoute))
+
+    FocusHandApproachMonitor(
+        enabled = currentRoute in FocusSessionNav.handApproachMonitorRoutes && currentFocusSession != null,
+        detectionEnabled = currentFocusSession != null && (
+            currentRoute in FocusSessionNav.handApproachMonitorRoutes ||
+                currentRoute == Routes.HAND_WARNING
+            ),
+        onShowWarning = {
+            if (currentRoute != Routes.HAND_WARNING) {
+                navController.navigate(Routes.HAND_WARNING) {
+                    launchSingleTop = true
+                }
+            }
+        },
+    )
 
     NavHost(
         navController = navController,

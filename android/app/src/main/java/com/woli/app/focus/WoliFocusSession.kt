@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlin.math.max
+import kotlin.math.min
 
 data class WoliFocusSessionConfig(
     val durationMinutes: Int = 90,
@@ -31,6 +32,12 @@ data class WoliFocusSession(
     fun elapsedMillis(nowMillis: Long): Long {
         val end = completedAtMillis ?: nowMillis
         return max(0L, end - startedAtMillis)
+    }
+
+    /** 집중 모드가 켜진 구간(시작~종료, 계획 종료 시각 상한). */
+    fun focusedElapsedMillis(): Long {
+        val endMillis = completedAtMillis ?: return 0L
+        return max(0L, min(endMillis, endsAtMillis) - startedAtMillis)
     }
 
     fun remainingMillis(nowMillis: Long): Long {

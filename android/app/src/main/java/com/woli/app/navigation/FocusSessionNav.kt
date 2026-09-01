@@ -11,6 +11,13 @@ object FocusSessionNav {
     const val POP_UP_TO_ON_SESSION_END = Routes.HOME
     const val POP_INCLUSIVE_ON_SESSION_END = false
 
+    /** Routes that should react to ESP32 `hand=1` rising edges during an active session. */
+    val handApproachMonitorRoutes: Set<String> = setOf(
+        Routes.FOCUS_EYES,
+        Routes.REMAINING_TIME,
+        Routes.IMPORTANT_CALL,
+    )
+
     val landscapeRoutes: Set<String> = setOf(
         Routes.FOCUS_EYES,
         Routes.REMAINING_TIME,

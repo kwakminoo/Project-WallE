@@ -16,6 +16,7 @@ class WoliFocusNotificationPermissionsTest {
             contacts = true,
             callerId = true,
             callControl = true,
+            camera = true,
         )
         assertTrue(complete.allGranted)
         assertTrue(complete.missingItems.isEmpty())
@@ -31,6 +32,7 @@ class WoliFocusNotificationPermissionsTest {
             contacts = true,
             callerId = false,
             callControl = true,
+            camera = true,
         )
         assertFalse(partialPhone.allGranted)
         assertEquals(
@@ -49,6 +51,7 @@ class WoliFocusNotificationPermissionsTest {
             contacts = false,
             callerId = false,
             callControl = false,
+            camera = false,
         )
         assertEquals(
             listOf(

@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
@@ -32,6 +33,14 @@ object WoliFocusGuardAccess {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 
+    /** Opens the per-app exemption dialog so the user can allow unrestricted background work. */
+    fun requestBatteryOptimizationExemptionIntent(context: Context): Intent {
+        return Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+            .setData(Uri.parse("package:${context.packageName}"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+
+    /** Fallback list screen when the direct exemption UI is unavailable on some OEM builds. */
     fun batteryOptimizationSettingsIntent(): Intent {
         return Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

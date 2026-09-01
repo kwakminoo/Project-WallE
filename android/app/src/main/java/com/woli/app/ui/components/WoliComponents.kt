@@ -129,9 +129,10 @@ fun WoliPrimaryButton(
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .height(56.dp),
+            .height(56.dp)
+            .then(modifier),
         shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = WoliYellow,

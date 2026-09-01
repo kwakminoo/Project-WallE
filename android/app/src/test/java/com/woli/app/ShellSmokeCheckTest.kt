@@ -71,6 +71,14 @@ class ShellSmokeCheckTest {
     }
 
     @Test
+    fun handApproachMonitorRoutesCoverActiveFocusSurfaces() {
+        assertTrue(FocusSessionNav.handApproachMonitorRoutes.contains(Routes.FOCUS_EYES))
+        assertTrue(FocusSessionNav.handApproachMonitorRoutes.contains(Routes.REMAINING_TIME))
+        assertTrue(FocusSessionNav.handApproachMonitorRoutes.contains(Routes.IMPORTANT_CALL))
+        assertFalse(FocusSessionNav.handApproachMonitorRoutes.contains(Routes.HAND_WARNING))
+    }
+
+    @Test
     fun normalCompletionRedirectsOnlyInProgressFocusRoutes() {
         assertTrue(FocusSessionNav.shouldRedirectToNormalCompletion(Routes.FOCUS_EYES))
         assertTrue(FocusSessionNav.shouldRedirectToNormalCompletion(Routes.HAND_WARNING))

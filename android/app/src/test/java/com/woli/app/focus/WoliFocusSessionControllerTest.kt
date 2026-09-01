@@ -90,6 +90,29 @@ class WoliFocusSessionControllerTest {
     }
 
     @Test
+    fun focusedElapsedMillisUsesActualFocusWindow() {
+        WoliFocusSessionController.resetForTest()
+        WoliFocusSessionController.updateConfig(WoliFocusSessionConfig(durationMinutes = 90))
+        WoliFocusSessionController.start(nowMillis = 1_000L)
+
+        val earlyExit = WoliFocusSessionController.complete(
+            reason = WoliFocusExitReason.MissionUnlocked,
+            nowMillis = 1_800_000L,
+        )
+        assertEquals(29 * 60_000L + 59_000L, earlyExit?.focusedElapsedMillis())
+
+        WoliFocusSessionController.resetForTest()
+        WoliFocusSessionController.updateConfig(WoliFocusSessionConfig(durationMinutes = 5))
+        WoliFocusSessionController.start(nowMillis = 10_000L)
+        val completed = WoliFocusSessionController.complete(
+            reason = WoliFocusExitReason.Completed,
+            nowMillis = 310_500L,
+        )
+        assertEquals(5 * 60_000L, completed?.focusedElapsedMillis())
+        WoliFocusSessionController.resetForTest()
+    }
+
+    @Test
     fun handWarningEdgeGateCountsOnlyRearmedRisingEdges() {
         val gate = WoliHandWarningEdgeGate(initialHandNear = false)
         assertFalse(gate.onHandStatus(false))

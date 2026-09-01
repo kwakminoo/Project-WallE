@@ -73,6 +73,7 @@ import com.woli.app.focus.FocusNotificationPermissionItem
 import com.woli.app.focus.WoliFocusGuardAccess
 import com.woli.app.focus.WoliFocusGuardService
 import com.woli.app.focus.WoliFocusNotificationPermissions
+import com.woli.app.focus.hand.CameraHandApproachAccess
 import com.woli.app.notification.WoliNotificationAccess
 import com.woli.app.ui.components.ShellHintBar
 import com.woli.app.ui.components.WoliPrimaryButton
@@ -643,8 +644,12 @@ fun FocusNotificationPermissionScreen(
     val contactPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
     ) { refreshAccessState() }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { refreshAccessState() }
 
     val missingItems = permissionState.missingItems
+    val optionalItems = permissionState.optionalMissingItems
 
     Column(
         modifier = Modifier
@@ -685,6 +690,26 @@ fun FocusNotificationPermissionScreen(
                 }
                 Spacer(modifier = Modifier.height(18.dp))
             }
+            if (optionalItems.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF1C1C1E), RoundedCornerShape(18.dp))
+                        .padding(18.dp),
+                ) {
+                    optionalItems.forEachIndexed { index, item ->
+                        if (index > 0) {
+                            Spacer(modifier = Modifier.height(14.dp))
+                        }
+                        PermissionStatusRow(
+                            title = item.statusTitle(),
+                            value = item.statusDescription(),
+                            active = false,
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(18.dp))
+            }
             ShellHintBar(
                 text = actionMessage
                     ?: "설정 화면에서 권한을 허용한 뒤 이 화면으로 돌아오면 자동으로 확인됩니다.",
@@ -708,8 +733,10 @@ fun FocusNotificationPermissionScreen(
                             }
                             FocusNotificationPermissionItem.BatteryOptimization -> {
                                 openSettings(
-                                    intentProvider = WoliFocusGuardAccess::batteryOptimizationSettingsIntent,
-                                    successMessage = "배터리 최적화 설정에서 월이를 제한 없음으로 설정하세요.",
+                                    intentProvider = {
+                                        WoliFocusGuardAccess.requestBatteryOptimizationExemptionIntent(context)
+                                    },
+                                    successMessage = "배터리 최적화 예외 요청에서 허용을 선택하세요.",
                                 )
                             }
                             FocusNotificationPermissionItem.PhoneBundle -> {
@@ -720,6 +747,23 @@ fun FocusNotificationPermissionScreen(
                             FocusNotificationPermissionItem.Contacts -> {
                                 contactPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
                             }
+                            FocusNotificationPermissionItem.Camera -> {
+                                cameraPermissionLauncher.launch(CameraHandApproachAccess.requiredPermission())
+                            }
+                        }
+                    },
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+            optionalItems.forEach { item ->
+                WoliSecondaryButton(
+                    text = item.buttonLabel(),
+                    onClick = {
+                        when (item) {
+                            FocusNotificationPermissionItem.Camera -> {
+                                cameraPermissionLauncher.launch(CameraHandApproachAccess.requiredPermission())
+                            }
+                            else -> Unit
                         }
                     },
                 )
@@ -748,6 +792,7 @@ private fun FocusNotificationPermissionItem.statusTitle(): String {
         FocusNotificationPermissionItem.BatteryOptimization -> "배터리 제한"
         FocusNotificationPermissionItem.PhoneBundle -> "전화·발신자·제어"
         FocusNotificationPermissionItem.Contacts -> "연락처 읽기"
+        FocusNotificationPermissionItem.Camera -> "카메라 (손 접근 감지)"
     }
 }
 
@@ -755,9 +800,10 @@ private fun FocusNotificationPermissionItem.statusDescription(): String {
     return when (this) {
         FocusNotificationPermissionItem.NotificationAccess -> "알림 접근 권한 필요"
         FocusNotificationPermissionItem.PostNotifications -> "Android 13+ 알림 표시 권한 필요"
-        FocusNotificationPermissionItem.BatteryOptimization -> "제조사 절전 정책 확인 필요"
+        FocusNotificationPermissionItem.BatteryOptimization -> "배터리 최적화 예외 허용 필요"
         FocusNotificationPermissionItem.PhoneBundle -> "전화 감지·발신자 식별·전화 제어 권한 필요"
         FocusNotificationPermissionItem.Contacts -> "중요 연락처 선택 권한 필요"
+        FocusNotificationPermissionItem.Camera -> "집중 중 손 접근 감지용 (선택)"
     }
 }
 
@@ -768,6 +814,7 @@ private fun FocusNotificationPermissionItem.buttonLabel(): String {
         FocusNotificationPermissionItem.BatteryOptimization -> "배터리 최적화 설정 열기"
         FocusNotificationPermissionItem.PhoneBundle -> "전화·발신자·제어 권한 허용"
         FocusNotificationPermissionItem.Contacts -> "연락처 권한 허용"
+        FocusNotificationPermissionItem.Camera -> "카메라 권한 허용"
     }
 }
 

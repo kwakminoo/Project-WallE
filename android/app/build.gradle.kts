@@ -15,6 +15,10 @@ android {
         versionCode = 1
         versionName = "0.1.0-shell"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        ndk {
+            // MediaPipe ships arm + x86(32); arm64 image/translated emulator can load these.
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
     }
 
     buildTypes {
@@ -38,6 +42,10 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    lint {
+        lintConfig = file("lint.xml")
     }
 
     packaging {
@@ -64,9 +72,13 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.foundation:foundation")
 
-    // BLE, local persistence, foreground focus guard, and async app flows.
+    // BLE, local persistence, foreground focus guard, camera hand approach, and async app flows.
     implementation("androidx.datastore:datastore-preferences:1.1.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation("androidx.camera:camera-camera2:1.4.2")
+    implementation("androidx.camera:camera-lifecycle:1.4.2")
+    // ponytail: ML Kit hand API is MediaPipe Tasks Vision; model in assets/hand_landmarker.task
+    implementation("com.google.mediapipe:tasks-vision:0.10.20")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
