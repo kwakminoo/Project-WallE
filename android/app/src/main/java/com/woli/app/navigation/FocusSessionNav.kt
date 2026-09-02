@@ -16,6 +16,23 @@ object FocusSessionNav {
         Routes.FOCUS_EYES,
         Routes.REMAINING_TIME,
         Routes.IMPORTANT_CALL,
+        Routes.HAND_WARNING,
+    )
+
+    /** 홈/탭/뒤로가기 이탈 시도에 손접근 경고 화면으로 전환할 집중 화면. */
+    val escapeReactRoutes: Set<String> = setOf(
+        Routes.FOCUS_EYES,
+        Routes.REMAINING_TIME,
+        Routes.IMPORTANT_CALL,
+        Routes.HAND_WARNING,
+    )
+
+    /** 중요 연락 수신 시 끼어들 수 있는 집중 화면(미션·해제 확인 제외). */
+    val callInterruptRoutes: Set<String> = setOf(
+        Routes.FOCUS_EYES,
+        Routes.REMAINING_TIME,
+        Routes.HAND_WARNING,
+        Routes.IMPORTANT_CALL,
     )
 
     val landscapeRoutes: Set<String> = setOf(
@@ -27,6 +44,23 @@ object FocusSessionNav {
         Routes.QUIT_CONFIRM,
         Routes.RHYTHM_MISSION,
         Routes.SESSION_REPORT,
+    )
+
+    /** 활성 집중 세션 중 시스템 바를 숨기고 홈/최근앱 이탈을 막는 화면. */
+    val immersiveFocusRoutes: Set<String> = setOf(
+        Routes.FOCUS_EYES,
+        Routes.REMAINING_TIME,
+        Routes.IMPORTANT_CALL,
+        Routes.HAND_WARNING,
+        Routes.QUIT_CONFIRM,
+        Routes.RHYTHM_MISSION,
+    )
+
+    /** 시스템 뒤로가기 → 이탈(손 경고) 화면으로 연결할 집중 화면. focus_eyes는 종료 확인으로 별도 처리. */
+    val backToQuitConfirmRoutes: Set<String> = setOf(
+        Routes.REMAINING_TIME,
+        Routes.IMPORTANT_CALL,
+        Routes.HAND_WARNING,
     )
 
     private val completionRedirectRoutes: Set<String> = setOf(

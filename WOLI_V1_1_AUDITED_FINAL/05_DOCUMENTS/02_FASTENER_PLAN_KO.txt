@@ -1,0 +1,19 @@
+WOLI V1.1 FASTENER PLAN
+=======================
+
+Top Cover → Chassis: M3×10 ×4
+Phone Neck → Top Cover: M3×10 ×4
+Battery Tray → Chassis: M3×6 ×4
+Caster Cartridge → Chassis: M3×8 ×4
+Caster Retainer → Cartridge: M3×6 ×2
+Upper Deck + 20mm Standoff → Chassis: M3×30 ×4
+Main PCB Tray → Deck: M3×6 ×4
+TB6612 Tray → Deck: M3×6 ×2
+USB-C Holder → Deck: M3×6 ×2
+Rear Hatch → Top Cover: M3×6 ×2
+
+PLA blind pilot
+- CAD: Ø2.8mm
+- 실제 출력이 과소치수면 2.9~3.0mm drill로 손 정리 가능
+- 전동 드라이버 고토크 금지
+- screw는 처음 체결할 때 천천히 수직으로 넣기

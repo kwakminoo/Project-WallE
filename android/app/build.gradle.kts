@@ -12,8 +12,8 @@ android {
         applicationId = "com.woli.app"
         minSdk = 31
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0-shell"
+        versionCode = 5
+        versionName = "0.1.4-shell"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
             // MediaPipe ships arm + x86(32); arm64 image/translated emulator can load these.

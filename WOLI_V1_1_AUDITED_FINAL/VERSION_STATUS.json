@@ -1,0 +1,35 @@
+{
+  "release": "WOLI V1.1 AUDITED FINAL",
+  "cad_status": "AUDITED_RELEASE",
+  "stl_qa": "PASS",
+  "engineering_checks": "PASS",
+  "body_mm": [
+    150,
+    190,
+    31
+  ],
+  "nominal_overall_width_with_wheels_mm": 179,
+  "battery": {
+    "model": "KLIFE PD-Q2",
+    "dimensions_mm": [
+      68,
+      143,
+      11
+    ],
+    "mass_g_approx": 205
+  },
+  "drive_wheels": {
+    "qty": 2,
+    "diameter_mm": 43,
+    "width_mm": 17.5
+  },
+  "caster": {
+    "qty": 1,
+    "envelope_mm": [
+      22,
+      17,
+      15
+    ]
+  },
+  "physical_validation_required": true
+}

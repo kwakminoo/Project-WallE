@@ -1,0 +1,292 @@
+{
+  "release/01_main_chassis.stl": {
+    "size_mm": [
+      150.0,
+      190.0,
+      31.0
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "release/03_top_cover.stl": {
+    "size_mm": [
+      150.0,
+      190.0,
+      40.0
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "release/04_pcb_tray.stl": {
+    "size_mm": [
+      56.0,
+      76.0,
+      8.0
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "release/05_servo_mount.stl": {
+    "size_mm": [
+      46.0,
+      42.0,
+      22.0
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "release/06_limit_switch_mount.stl": {
+    "size_mm": [
+      34.0,
+      36.0,
+      12.0
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "release/08_phone_neck_16mm.stl": {
+    "size_mm": [
+      54.0,
+      42.0,
+      60.992
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "release/09B_caster_tab_retainer.stl": {
+    "size_mm": [
+      38.0,
+      24.0,
+      3.0
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "release/09_caster_cartridge.stl": {
+    "size_mm": [
+      40.0,
+      34.0,
+      4.0
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "release/10_cable_clip.stl": {
+    "size_mm": [
+      16.0,
+      12.0,
+      7.0
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "release/13_rear_service_hatch.stl": {
+    "size_mm": [
+      50.0,
+      18.0,
+      2.4
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "release/15_tb6612fng_tray.stl": {
+    "size_mm": [
+      40.0,
+      40.0,
+      5.2
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "release/16_usbc_breakout_holder.stl": {
+    "size_mm": [
+      26.0,
+      24.0,
+      8.5
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "release/17_tof_front_bezel.stl": {
+    "size_mm": [
+      34.0,
+      19.0,
+      1.8
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "release/19B_klife_pd_q2_battery_tray.stl": {
+    "size_mm": [
+      84.0,
+      146.0,
+      7.9
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "release/20_cable_bridge.stl": {
+    "size_mm": [
+      24.0,
+      14.0,
+      8.0
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "release/21S_electronics_standoff_20mm.stl": {
+    "size_mm": [
+      10.0,
+      10.0,
+      20.0
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "release/21_upper_electronics_bridge.stl": {
+    "size_mm": [
+      122.0,
+      94.0,
+      7.5
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "fit_test/09C_caster_shim_1mm.stl": {
+    "size_mm": [
+      40.0,
+      34.0,
+      1.0
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "fit_test/09C_caster_shim_2mm.stl": {
+    "size_mm": [
+      40.0,
+      34.0,
+      1.0
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "fit_test/09C_caster_shim_3mm.stl": {
+    "size_mm": [
+      40.0,
+      34.0,
+      1.0
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "fit_test/13B_rear_service_hatch_usbc_TEST.stl": {
+    "size_mm": [
+      50.0,
+      18.0,
+      2.4
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "fit_test/18_neck_landing_trim.stl": {
+    "size_mm": [
+      60.0,
+      48.0,
+      1.4
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "fit_test/22_servo_horn_adapter_universal.stl": {
+    "size_mm": [
+      28.0,
+      28.0,
+      3.2
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "fit_test/23_lock_arm_reach_18mm.stl": {
+    "size_mm": [
+      37.0,
+      28.0,
+      4.0
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "fit_test/23_lock_arm_reach_22mm.stl": {
+    "size_mm": [
+      41.0,
+      28.0,
+      4.0
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "fit_test/23_lock_arm_reach_26mm.stl": {
+    "size_mm": [
+      45.0,
+      28.0,
+      4.0
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "fit_test/23_lock_arm_reach_30mm.stl": {
+    "size_mm": [
+      49.0,
+      28.0,
+      4.0
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "fit_test/24_lock_contact_pad.stl": {
+    "size_mm": [
+      11.0,
+      11.0,
+      2.0
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  },
+  "fit_test/25_servo_lock_datum_jig.stl": {
+    "size_mm": [
+      62.0,
+      62.0,
+      1.6
+    ],
+    "watertight": true,
+    "components": 1,
+    "pass": true
+  }
+}

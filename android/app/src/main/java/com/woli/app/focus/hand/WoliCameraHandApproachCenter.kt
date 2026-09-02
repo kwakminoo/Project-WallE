@@ -10,6 +10,12 @@ object WoliCameraHandApproachCenter {
 
     val isHandNear: StateFlow<Boolean> = detector.isHandNear
 
+    val isDetectionRunning: StateFlow<Boolean> = detector.isDetectionRunning
+
+    val framesAnalyzed: StateFlow<Long> = detector.framesAnalyzed
+
+    val lastError: StateFlow<String?> = detector.lastError
+
     fun isDetectionSupported(): Boolean = HandApproachNativeSupport.isAvailable()
 
     fun startDetection(context: Context, lifecycleOwner: LifecycleOwner) {

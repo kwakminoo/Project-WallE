@@ -1,0 +1,22 @@
+{
+  "body_mm": [
+    150,
+    190,
+    31
+  ],
+  "battery_mm": [
+    68,
+    143,
+    11
+  ],
+  "battery_mass_g_approx": 205,
+  "nominal_wheel_outer_width_mm": 179.0,
+  "cover_skirt_clearance_each_side_mm": {
+    "x": 0.4,
+    "y": 0.4
+  },
+  "battery_tray_to_caster_plate_gap_mm": 2.0,
+  "battery_to_upper_deck_vertical_gap_mm": 6.6,
+  "module_plan_collisions": [],
+  "modules_outside_122x94_deck": []
+}

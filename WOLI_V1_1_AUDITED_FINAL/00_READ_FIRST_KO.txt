@@ -1,0 +1,54 @@
+WOLI V1.1 AUDITED FINAL RELEASE
+================================
+
+이 버전은 기존 V0.x / V1.0 모델을 '실제 출력·조립' 관점에서 다시 감사(Audit)한 최종 인계본입니다.
+오래된 프로토타입 문서는 제거하고, 현재 구조에 필요한 파일만 분류했습니다.
+
+이번 Audit에서 수정한 핵심
+1. KLIFE PD-Q2 68×143×11mm / 약 205g 배터리 반영
+2. Body 150×190mm 유지 및 배터리/캐스터 하부 구역 재검증
+3. 일체형 Electronics Bridge를 Flat Deck + 별도 20mm Standoff 4개로 분리
+   → FDM에서 거대한 공중 Bridge를 출력해야 하던 문제 제거
+4. Chassis와 Electronics Bridge가 같은 공간을 차지하던 Boss 구조 제거
+5. Battery Tray / Caster Cartridge / Upper Deck을 blind pilot 체결 방식으로 변경
+   → 바닥 아래 Nut가 Bottom Cover와 충돌하는 문제 제거
+6. 불필요한 Bottom Cover를 최종 출력 세트에서 제거
+   → Main Chassis 자체가 5mm 구조 바닥을 가짐
+7. Top Cover에 실제 locating skirt + 측면 M3 체결 구조 추가
+8. Phone Neck 4홀을 reinforced blind pilot으로 변경
+9. Ball Caster Retainer 체결 나사가 캐스터를 관통하지 않도록 변경
+10. Caster cartridge-to-chassis 홀 위치를 실제 chassis pilot과 일치시킴
+11. VL53L0X front guide를 Top Cover 내부에 통합
+12. Rear Service Hatch와 Top Cover 고정홀을 실제 일치시킴
+13. Main PCB / TB6612 / USB-C용 전용 Deck boss 위치 확정
+14. 오래된 '150×160', 'Battery pending', 'Caster mounting-hole pending' 문서 제거
+
+자동 검증 결과
+- Release STL: Watertight + Single Solid 전부 PASS
+- Fit-test STL: Watertight + Single Solid 전부 PASS
+- Cover skirt clearance: X 0.4mm / Y 0.4mm per side
+- Battery tray ↔ caster plate plan gap: 2.0mm
+- Battery top ↔ electronics deck underside: 6.6mm
+- PCB / TB6612 / USB-C plan collision: 0
+- 모든 module이 122×94mm Electronics Deck 내부: PASS
+
+확정 치수
+- Body: 150×190mm
+- N20 wheel: Ø43×17.5mm ×2
+- Ball caster: 22×17×15mm ×1
+- KLIFE PD-Q2 battery: 68×143×11mm, 약205g
+- Main PCB: 50×70×약15mm
+- TB6612FNG HW-166: 26×26mm
+- USB-C breakout: 약12×15mm, connector 약4.2mm
+- Phone Ball V1: Ø16.0mm
+
+실물 승인 전까지 남는 항목
+- Ø16 phone ball/socket fit
+- MG90S stock horn / 최종 lock reach
+- N20 bracket 조립 후 실제 chassis ground clearance
+- Ball caster 실제 접지 높이
+- 전체 배선 간섭
+- Smartphone + holder 실제 무게중심/전복 시험
+
+이 파일은 '모델링 담당 최종 Release'이며,
+하드웨어 실물 검증 결과가 들어오면 V1.1 그대로 승인하거나 필요한 치수만 Patch합니다.

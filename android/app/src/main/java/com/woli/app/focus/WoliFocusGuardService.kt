@@ -2,7 +2,6 @@ package com.woli.app.focus
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -11,16 +10,12 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import com.woli.app.MainActivity
-import com.woli.app.MainActivity.Companion.EXTRA_ROUTE
-import com.woli.app.R
 import com.woli.app.call.WoliCallAccess
 import com.woli.app.call.WoliCallCenter
 import com.woli.app.call.WoliCallMonitor
 import com.woli.app.call.WoliCallState
 import com.woli.app.device.WoliBleDeviceClient
 import com.woli.app.device.WoliDeviceProtocol
-import com.woli.app.navigation.Routes
 import com.woli.app.notification.WoliNotificationCenter
 import com.woli.app.notification.WoliNotificationPriority
 import com.woli.app.voice.WoliAnnouncementFormatter
@@ -39,8 +34,6 @@ class WoliFocusGuardService : Service() {
     private var ttsSpeaker: WoliTtsSpeaker? = null
     private var bleClient: WoliBleDeviceClient? = null
     private var callMonitor: WoliCallMonitor? = null
-    private var lastSpokenNotificationId: String? = null
-    private var lastSpokenCallKey: String? = null
     private var guardStarted = false
 
     override fun onCreate() {
@@ -56,10 +49,21 @@ class WoliFocusGuardService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                }
                 stopSelf()
                 return START_NOT_STICKY
             }
-            else -> startGuard()
+        }
+
+        ensureNotificationChannel()
+        startForegroundCompat()
+        if (!guardStarted) {
+            guardStarted = true
+            startGuardWorkers()
+        } else if (WoliFocusSessionController.current.value != null) {
+            startForegroundCompat()
         }
         return START_STICKY
     }
@@ -67,18 +71,19 @@ class WoliFocusGuardService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        guardStarted = false
         callMonitor?.stop()
         ttsSpeaker?.shutdown()
         serviceScope.cancel()
         super.onDestroy()
     }
 
-    private fun startGuard() {
-        if (guardStarted) return
-        guardStarted = true
-        ensureNotificationChannel()
-        startForegroundCompat()
+    private fun startGuardWorkers() {
         bleClient?.sendPendingFocusCommand()
+        if (WoliFocusSessionController.current.value != null) {
+            FocusSessionAudioMode.enterVibrate(applicationContext)
+            FocusAnnouncementTracker.reset()
+        }
         if (WoliCallAccess.isGranted(this)) {
             callMonitor?.start()
         }
@@ -87,11 +92,7 @@ class WoliFocusGuardService : Service() {
             while (true) {
                 delay(1_000L)
                 val nowMillis = System.currentTimeMillis()
-                val active = WoliFocusSessionController.current.value
-                if (active == null) {
-                    stopSelf()
-                    return@launch
-                }
+                val active = WoliFocusSessionController.current.value ?: continue
                 if (active.remainingMillis(nowMillis) <= 0L && !uiActive.get()) {
                     if (completeNormally(applicationContext, bleClient, nowMillis)) {
                         ttsSpeaker?.speak("집중 시간이 완료되어 잠금을 해제합니다.")
@@ -103,30 +104,44 @@ class WoliFocusGuardService : Service() {
         }
 
         serviceScope.launch {
+            while (true) {
+                delay(400L)
+                if (WoliFocusSessionController.current.value == null) continue
+                if (FocusLockTask.isPinned(applicationContext)) continue
+                if (WoliFocusGuardService.isUiActive()) continue
+                if (FocusSessionRecovery.isAppInForeground(applicationContext)) continue
+                FocusSessionRecovery.recover(applicationContext)
+            }
+        }
+
+        serviceScope.launch {
             WoliNotificationCenter.events.collectLatest { events ->
-                if (uiActive.get()) return@collectLatest
+                if (WoliFocusSessionController.current.value == null) return@collectLatest
                 val event = events.firstOrNull { it.priority != WoliNotificationPriority.Normal }
                     ?: return@collectLatest
-                if (event.id == lastSpokenNotificationId) return@collectLatest
+                if (!FocusAnnouncementTracker.shouldAnnounceNotification(event.id)) return@collectLatest
                 if (WoliCallCenter.current.value?.state == WoliCallState.Ringing) return@collectLatest
 
                 WoliAnnouncementFormatter.notificationAnnouncement(event)?.let { announcement ->
-                    ttsSpeaker?.speak(announcement)
-                    lastSpokenNotificationId = event.id
+                    FocusAnnouncementTracker.markNotificationAnnounced(event.id)
+                    ttsSpeaker?.speak(announcement, onDone = {
+                        FocusVoiceInterruptState.requestListening()
+                    })
                 }
             }
         }
 
         serviceScope.launch {
             WoliCallCenter.current.collectLatest { call ->
-                if (uiActive.get()) return@collectLatest
+                if (WoliFocusSessionController.current.value == null) return@collectLatest
                 if (call?.state != WoliCallState.Ringing) return@collectLatest
-                val key = "${call.id}_${call.state.name}"
-                if (key == lastSpokenCallKey) return@collectLatest
+                if (!FocusAnnouncementTracker.shouldAnnounceCall(call.id)) return@collectLatest
 
                 WoliAnnouncementFormatter.callAnnouncement(call)?.let { announcement ->
-                    ttsSpeaker?.speak(announcement)
-                    lastSpokenCallKey = key
+                    FocusAnnouncementTracker.markCallAnnounced(call.id)
+                    ttsSpeaker?.speak(announcement, onDone = {
+                        FocusVoiceInterruptState.requestListening()
+                    })
                 }
             }
         }
@@ -145,14 +160,7 @@ class WoliFocusGuardService : Service() {
     }
 
     private fun startForegroundCompat() {
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_woli)
-            .setContentTitle("월이 집중 모드 실행 중")
-            .setContentText("중요 연락과 잠금 상태를 백그라운드에서 지키고 있습니다.")
-            .setContentIntent(focusPendingIntent())
-            .setOngoing(true)
-            .setSilent(true)
-            .build()
+        val notification = FocusSessionRecovery.buildRecoveryForegroundNotification(this)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(
@@ -163,18 +171,6 @@ class WoliFocusGuardService : Service() {
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
-    }
-
-    private fun focusPendingIntent(): PendingIntent {
-        val intent = Intent(this, MainActivity::class.java)
-            .putExtra(EXTRA_ROUTE, Routes.FOCUS_EYES)
-            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        return PendingIntent.getActivity(
-            this,
-            0,
-            intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
     }
 
     companion object {
@@ -193,6 +189,9 @@ class WoliFocusGuardService : Service() {
             if (WoliFocusSessionController.completeIfActive(WoliFocusExitReason.Completed, nowMillis) == null) {
                 return false
             }
+            FocusSessionAudioMode.restore(context)
+            FocusVoiceInterruptState.stopListening()
+            FocusAnnouncementTracker.reset()
             (bleClient ?: WoliBleDeviceClient(context)).sendPendingFocusCommand()
             stop(context)
             return true
@@ -211,5 +210,7 @@ class WoliFocusGuardService : Service() {
         fun setUiActive(active: Boolean) {
             uiActive.set(active)
         }
+
+        fun isUiActive(): Boolean = uiActive.get()
     }
 }

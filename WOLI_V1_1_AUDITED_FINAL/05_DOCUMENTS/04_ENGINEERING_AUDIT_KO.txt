@@ -1,0 +1,39 @@
+WOLI V1.1 ENGINEERING AUDIT
+===========================
+
+STL Mesh
+- Release: PASS
+- Fit Test: PASS
+
+Top Cover / Chassis
+- Chassis inner: 144.0×184.0mm
+- Cover skirt outer: 143.2×183.2mm
+- Per-side clearance: X 0.4mm / Y 0.4mm
+- PASS
+
+Battery / Caster
+- Battery tray rear edge Y: 55.0mm
+- Caster cartridge front edge Y: 57.0mm
+- Plan gap: 2.0mm
+- PASS
+
+Battery / Electronics Deck
+- Battery top datum: 18.4mm
+- Deck underside datum: 25.0mm
+- Vertical gap: 6.6mm
+- PASS
+
+Electronics Deck Plan
+- PCB/TB6612/USB overlap: NONE
+- All module envelopes inside 122×94mm Deck
+- PASS
+
+Printability corrections
+- Old one-piece bridge removed
+- Separate standoffs introduced
+- No large unsupported 122×94mm bridge plate is printed in mid-air
+
+Fastener corrections
+- Blind floor pilots used
+- No battery/caster/bridge nut required below chassis floor
+- No long vertical bolt through Top Cover + Chassis + Bottom Cover

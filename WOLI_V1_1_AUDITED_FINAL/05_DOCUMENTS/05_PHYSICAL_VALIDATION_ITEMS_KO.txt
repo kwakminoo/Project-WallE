@@ -1,0 +1,33 @@
+WOLI V1.1 실물 검증 필요 항목
+==============================
+
+1. Phone Ball
+Ø16.0mm
+- 실제 socket fit 필요
+- 필요 시 15.8 / 16.2mm 수정
+
+2. Servo Lock
+- Stock horn 실제 hole/screw
+- Blocking point
+- 18/22/26/30mm 중 적합 reach
+- LOCK 90° / UNLOCK 10°는 firmware reference
+
+3. N20 / Ground Clearance
+- 실제 metal bracket 조립 시 shaft 높이
+- chassis 바닥의 실제 지상고
+
+4. Ball Caster
+- clip-fit
+- wheel 2개와 caster 1개가 동시에 접지되는지
+- caster가 너무 낮으면 1/2/3mm shim으로 올릴 수 있음
+- caster가 바닥에 닿지 않으면 shim이 아니라 cartridge drop 재설계 필요
+
+5. USB-C
+- Board holder fit
+- 13B USB-C hatch는 TEST
+- connector shell 위치 확인 후 외부 port 최종 승인
+
+6. Stability
+- Battery 약205g는 CAD 배치에 반영
+- Smartphone + commercial holder 실제 질량은 미확정
+- 급정지/회전/잠금 동작에서 전복 테스트 필요

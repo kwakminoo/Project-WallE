@@ -1,10 +1,11 @@
 package com.woli.app.focus.hand
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Matrix
 import androidx.camera.core.ImageProxy
-import com.google.mediapipe.framework.image.MediaImageBuilder
+import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
-import com.google.mediapipe.tasks.vision.core.ImageProcessingOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
@@ -22,17 +23,18 @@ internal class MediaPipeHandLandmarkerEngine(context: Context) : AutoCloseable {
             )
             .setRunningMode(RunningMode.IMAGE)
             .setNumHands(1)
+            // ponytail: Jump2 전면 8MP·640p 분석에서 손 검출률 우선
+            .setMinHandDetectionConfidence(0.4f)
+            .setMinHandPresenceConfidence(0.4f)
+            .setMinTrackingConfidence(0.4f)
             .build()
         handLandmarker = HandLandmarker.createFromOptions(context, options)
     }
 
     fun detect(imageProxy: ImageProxy): HandApproachFrame {
-        val mediaImage = imageProxy.image ?: return emptyFrame()
-        val mpImage = MediaImageBuilder(mediaImage).build()
-        val processingOptions = ImageProcessingOptions.builder()
-            .setRotationDegrees(imageProxy.imageInfo.rotationDegrees)
-            .build()
-        return frameFromResult(handLandmarker.detect(mpImage, processingOptions))
+        val bitmap = imageProxy.toFrontCameraBitmap() ?: return emptyFrame()
+        val mpImage = BitmapImageBuilder(bitmap).build()
+        return frameFromResult(handLandmarker.detect(mpImage))
     }
 
     override fun close() {
@@ -67,4 +69,18 @@ internal class MediaPipeHandLandmarkerEngine(context: Context) : AutoCloseable {
         handAreaRatio = 0f,
         overlapsCenter = false,
     )
+}
+
+/** MediaPipe 공식 CameraX 샘플과 동일: RGBA → 회전 → 전면 미러. */
+private fun ImageProxy.toFrontCameraBitmap(): Bitmap? {
+    if (planes.isEmpty()) return null
+    val bitmapBuffer = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    planes[0].buffer.rewind()
+    bitmapBuffer.copyPixelsFromBuffer(planes[0].buffer)
+
+    val matrix = Matrix().apply {
+        postRotate(imageInfo.rotationDegrees.toFloat())
+        postScale(-1f, 1f, width.toFloat(), height.toFloat())
+    }
+    return Bitmap.createBitmap(bitmapBuffer, 0, 0, width, height, matrix, true)
 }

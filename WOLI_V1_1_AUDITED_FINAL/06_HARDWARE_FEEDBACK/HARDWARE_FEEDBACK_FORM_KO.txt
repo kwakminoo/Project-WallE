@@ -1,0 +1,71 @@
+WOLI V1.1 HARDWARE FEEDBACK FORM
+================================
+
+DATE:
+PRINTER:
+FILAMENT:
+LAYER:
+
+A. MAIN CHASSIS / MOTOR
+N20 bracket fit: PASS / FAIL
+Wheel free rotation: PASS / FAIL
+Actual ground clearance:
+Photo:
+
+B. BATTERY
+Tray fit: PASS / FAIL
+68×143×11 battery fit: PASS / FAIL
+Port access: PASS / FAIL
+Correction mm:
+Photo:
+
+C. CASTER
+Clip-fit: PASS / FAIL
+Retainer: PASS / FAIL
+Ball free rotation: PASS / FAIL
+Ground contact with both drive wheels: PASS / FAIL
+Shim: 0 / 1 / 2 / 3mm
+Photo:
+
+D. TOP COVER / TOF
+Skirt insertion: PASS / FAIL
+Side screws: PASS / FAIL
+ToF opening alignment: PASS / FAIL
+Wire pinch: PASS / FAIL
+
+E. PHONE BALL
+Diameter:
+Fit:
+Sag:
+Photo:
+
+F. SERVO LOCK
+Horn photo:
+Horn hole/screw:
+Chosen reach:
+LOCK:
+UNLOCK:
+Stall:
+Interference:
+
+G. ELECTRONICS
+PCB tray:
+TB6612 tray:
+USB holder:
+USB hatch if tested:
+
+H. STABILITY
+Phone model:
+Approx phone mass:
+Standing:
+Driving:
+Hard stop:
+Turning:
+
+I. ERROR
+File:
+Symptom:
+Actual mm:
+CAD mm:
+Requested change:
+Photo:

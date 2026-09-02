@@ -2,11 +2,17 @@ package com.woli.app
 
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.pm.ApplicationInfo
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -18,7 +24,17 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import com.woli.app.focus.FocusCallNavigation
+import com.woli.app.focus.FocusLockTask
+import com.woli.app.focus.FocusSessionAudioMode
+import com.woli.app.focus.FocusSessionRecovery
+import com.woli.app.focus.FocusSessionUiGuard
+import com.woli.app.focus.FocusEscapeNavigation
 import com.woli.app.focus.FocusHandApproachMonitor
+import com.woli.app.focus.FocusHandApproachNavigation
+import com.woli.app.focus.FocusVoiceInterruptHandler
+import com.woli.app.focus.focusHandApproachMonitorEnabled
+import com.woli.app.focus.returnToFocusEyes
 import com.woli.app.focus.WoliFocusNotificationPermissions
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
@@ -26,14 +42,16 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.woli.app.contacts.WoliImportantContactsStore
+import com.woli.app.device.WoliDeviceCenter
+import com.woli.app.focus.WoliFocusGuardService
 import com.woli.app.focus.WoliFocusSessionController
 import com.woli.app.focus.WoliFocusExitReason
 import com.woli.app.navigation.FocusSessionNav
 import com.woli.app.navigation.Routes
 import com.woli.app.notification.WoliNotificationAccess
 import com.woli.app.notification.WoliNotificationRuleStore
+import com.woli.app.ui.FocusSystemUiEffect
 import com.woli.app.ui.screens.AppInfoScreen
-import com.woli.app.ui.screens.BreathingMissionScreen
 import com.woli.app.ui.screens.DeviceConnectScreen
 import com.woli.app.ui.screens.FocusCompleteScreen
 import com.woli.app.ui.screens.FocusEyesScreen
@@ -44,9 +62,7 @@ import com.woli.app.ui.screens.HardwareDiagnosticsScreen
 import com.woli.app.ui.screens.HomeScreen
 import com.woli.app.ui.screens.ImportantCallScreen
 import com.woli.app.ui.screens.ImportantContactsScreen
-import com.woli.app.ui.screens.MissionsScreen
 import com.woli.app.ui.screens.MountGuideScreen
-import com.woli.app.ui.screens.MemoryMissionScreen
 import com.woli.app.ui.screens.NotificationDiagnosticsScreen
 import com.woli.app.ui.screens.NotificationPolicyScreen
 import com.woli.app.ui.screens.QuitConfirmScreen
@@ -65,15 +81,20 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        routeState.value = intent?.getStringExtra(EXTRA_ROUTE)
         WoliImportantContactsStore.load(applicationContext)
         WoliFocusSessionController.load(applicationContext)
         WoliNotificationRuleStore.load(applicationContext)
+        routeState.value = intent?.getStringExtra(EXTRA_ROUTE)
+        if (isDebuggable() && intent?.getBooleanExtra(EXTRA_TEST_AUTO_FOCUS, false) == true) {
+            WoliFocusSessionController.startIfNeeded()
+            WoliFocusGuardService.start(applicationContext)
+            if (routeState.value.isNullOrBlank()) {
+                routeState.value = Routes.FOCUS_EYES
+            }
+        }
         setContent {
             WoliTheme {
-                Surface(modifier = Modifier.fillMaxSize(), color = WoliBlack) {
-                    WoliApp(activity = this, startRoute = routeState.value)
-                }
+                WoliApp(activity = this, startRoute = routeState.value)
             }
         }
     }
@@ -84,8 +105,55 @@ class MainActivity : ComponentActivity() {
         routeState.value = intent.getStringExtra(EXTRA_ROUTE)
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (WoliFocusSessionController.current.value != null) {
+            WoliFocusGuardService.setUiActive(true)
+            FocusLockTask.enter(this)
+        }
+    }
+
+    override fun onPause() {
+        if (WoliFocusSessionController.current.value != null) {
+            WoliFocusGuardService.setUiActive(false)
+        }
+        super.onPause()
+    }
+
+    override fun onUserLeaveHint() {
+        if (WoliFocusSessionController.current.value == null) {
+            super.onUserLeaveHint()
+            return
+        }
+        FocusLockTask.enter(this)
+        if (!FocusLockTask.isPinned(this)) {
+            FocusSessionRecovery.recover(this)
+        }
+    }
+
+    override fun onStop() {
+        if (WoliFocusSessionController.current.value != null) {
+            WoliFocusGuardService.setUiActive(false)
+        }
+        super.onStop()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus || WoliFocusSessionController.current.value == null) return
+        if (FocusLockTask.isPinned(this)) return
+        if (!FocusSessionRecovery.isAppInForeground(applicationContext)) {
+            FocusSessionRecovery.recover(applicationContext)
+        }
+    }
+
+    private fun isDebuggable(): Boolean =
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+
     companion object {
         const val EXTRA_ROUTE = "route"
+        /** Debug/emulator: 집중 세션·FGS를 바로 켜고 focus_eyes로 진입한다. */
+        const val EXTRA_TEST_AUTO_FOCUS = "test_auto_focus"
     }
 }
 
@@ -97,8 +165,50 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val currentFocusSession by WoliFocusSessionController.current.collectAsState()
+    val deviceState by WoliDeviceCenter.state.collectAsState()
     val focusHistory by WoliFocusSessionController.history.collectAsState()
     val latestCompletedSession = focusHistory.firstOrNull()
+    val immersiveFocus = currentFocusSession != null &&
+        currentRoute in FocusSessionNav.immersiveFocusRoutes
+
+    FocusSystemUiEffect(activity = activity, immersive = immersiveFocus)
+    FocusSessionUiGuard(activity = activity, immersiveFocus = immersiveFocus)
+    SideEffect {
+        if (immersiveFocus) {
+            activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    val surfaceModifier = if (immersiveFocus) {
+        Modifier.fillMaxSize()
+    } else {
+        Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+    }
+
+    if (currentFocusSession != null &&
+        currentRoute in FocusSessionNav.immersiveFocusRoutes &&
+        currentRoute != Routes.QUIT_CONFIRM &&
+        currentRoute != Routes.RHYTHM_MISSION
+    ) {
+        BackHandler {
+            navController.navigate(Routes.QUIT_CONFIRM) {
+                launchSingleTop = true
+            }
+        }
+    }
+
+    LaunchedEffect(currentFocusSession?.id) {
+        val context = activity.applicationContext
+        if (currentFocusSession != null) {
+            FocusSessionAudioMode.enterVibrate(context)
+        } else {
+            FocusSessionAudioMode.restore(context)
+        }
+    }
 
     LaunchedEffect(startRoute) {
         val route = startRoute?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
@@ -127,22 +237,36 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
     // 화면마다 SideEffect로 방향을 바꾸면 전환 중 충돌·재생성으로 집중모드가 복원된다.
     LockOrientation(activity, portrait = !FocusSessionNav.isLandscapeRoute(currentRoute))
 
-    FocusHandApproachMonitor(
-        enabled = currentRoute in FocusSessionNav.handApproachMonitorRoutes && currentFocusSession != null,
-        detectionEnabled = currentFocusSession != null && (
-            currentRoute in FocusSessionNav.handApproachMonitorRoutes ||
-                currentRoute == Routes.HAND_WARNING
-            ),
-        onShowWarning = {
-            if (currentRoute != Routes.HAND_WARNING) {
-                navController.navigate(Routes.HAND_WARNING) {
-                    launchSingleTop = true
-                }
-            }
-        },
+    FocusHandApproachNavigation(
+        navController = navController,
+        currentRoute = currentRoute,
+        currentFocusSession = currentFocusSession,
     )
 
-    NavHost(
+    FocusEscapeNavigation(
+        navController = navController,
+        currentRoute = currentRoute,
+        currentFocusSession = currentFocusSession,
+    )
+
+    FocusCallNavigation(
+        navController = navController,
+        currentRoute = currentRoute,
+        currentFocusSession = currentFocusSession,
+    )
+
+    FocusVoiceInterruptHandler(
+        navController = navController,
+        currentRoute = currentRoute,
+        currentFocusSession = currentFocusSession,
+    )
+
+    FocusHandApproachMonitor(
+        enabled = focusHandApproachMonitorEnabled(currentRoute, currentFocusSession),
+    )
+
+    Surface(modifier = surfaceModifier, color = WoliBlack) {
+        NavHost(
         navController = navController,
         startDestination = Routes.HOME,
     ) {
@@ -153,7 +277,6 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
                     navController.navigate(Routes.FOCUS_TIME)
                 },
                 onOpenStats = { navController.navigate(Routes.STATS) },
-                onOpenMissions = { navController.navigate(Routes.MISSIONS) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                 onOpenPermissionSetup = { navController.navigate(Routes.FOCUS_NOTIFICATION_PERMISSION) },
             )
@@ -161,43 +284,21 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
         composable(Routes.STATS) {
             StatsScreen(
                 onBackHome = { navController.navigateHomeClearingStack() },
-                onMissions = { navController.navigate(Routes.MISSIONS) },
                 onSettings = { navController.navigate(Routes.SETTINGS) },
-            )
-        }
-        composable(Routes.MISSIONS) {
-            MissionsScreen(
-                onBackHome = { navController.navigateHomeClearingStack() },
-                onStats = { navController.navigate(Routes.STATS) },
-                onSettings = { navController.navigate(Routes.SETTINGS) },
-                onOpenBreathing = { navController.navigate(Routes.BREATHING_MISSION) },
-                onOpenMemory = { navController.navigate(Routes.MEMORY_MISSION) },
             )
         }
         composable(Routes.SETTINGS) {
             SettingsScreen(
                 onBackHome = { navController.navigateHomeClearingStack() },
                 onStats = { navController.navigate(Routes.STATS) },
-                onMissions = { navController.navigate(Routes.MISSIONS) },
+                onOpenPermissionSetup = { navController.navigate(Routes.FOCUS_NOTIFICATION_PERMISSION) },
                 onOpenGallery = { navController.navigate(Routes.SHELL_GALLERY) },
-                onOpenDevice = { navController.navigate(Routes.DEVICE_CONNECT) },
+                onOpenBluetoothSettings = { navController.navigate(Routes.BLUETOOTH_SETTINGS) },
                 onOpenContacts = { navController.navigate(Routes.IMPORTANT_CONTACTS) },
                 onOpenNotificationPolicy = { navController.navigate(Routes.NOTIFICATION_POLICY) },
                 onOpenNotificationDiagnostics = { navController.navigate(Routes.NOTIFICATION_DIAGNOSTICS) },
                 onOpenHardwareDiagnostics = { navController.navigate(Routes.HARDWARE_DIAGNOSTICS) },
                 onOpenAppInfo = { navController.navigate(Routes.APP_INFO) },
-            )
-        }
-        composable(Routes.BREATHING_MISSION) {
-            LockOrientation(activity, portrait = true)
-            BreathingMissionScreen(
-                onBack = { navController.popBackStack() },
-            )
-        }
-        composable(Routes.MEMORY_MISSION) {
-            LockOrientation(activity, portrait = true)
-            MemoryMissionScreen(
-                onBack = { navController.popBackStack() },
             )
         }
         composable(Routes.APP_INFO) {
@@ -209,13 +310,26 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
         composable(Routes.FOCUS_TIME) {
             FocusTimeSettingScreen(
                 onBack = { navController.popBackStack() },
-                onNext = { navController.navigate(Routes.DEVICE_CONNECT) },
+                onNext = {
+                    if (deviceState.isConnected) {
+                        navController.navigate(Routes.IMPORTANT_CONTACTS)
+                    } else {
+                        navController.navigate(Routes.DEVICE_CONNECT)
+                    }
+                },
             )
         }
         composable(Routes.DEVICE_CONNECT) {
             DeviceConnectScreen(
                 onBack = { navController.popBackStack() },
                 onNext = { navController.navigate(Routes.IMPORTANT_CONTACTS) },
+            )
+        }
+        composable(Routes.BLUETOOTH_SETTINGS) {
+            LockOrientation(activity, portrait = true)
+            DeviceConnectScreen(
+                onBack = { navController.popBackStack() },
+                onNext = null,
             )
         }
         composable(Routes.IMPORTANT_CONTACTS) {
@@ -277,9 +391,6 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
         }
         composable(Routes.FOCUS_EYES) {
             FocusEyesScreen(
-                onShowRemaining = { navController.navigate(Routes.REMAINING_TIME) },
-                onShowCall = { navController.navigate(Routes.IMPORTANT_CALL) },
-                onShowWarning = { navController.navigate(Routes.HAND_WARNING) },
                 onQuit = { navController.navigate(Routes.QUIT_CONFIRM) },
                 onComplete = { navController.navigateSessionEnd(Routes.FOCUS_COMPLETE) },
             )
@@ -289,13 +400,13 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
         }
         composable(Routes.IMPORTANT_CALL) {
             ImportantCallScreen(
-                onAnswer = { navController.popBackStack() },
-                onLater = { navController.popBackStack() },
-                onContinue = { navController.popBackStack() },
+                onAnswer = { navController.returnToFocusEyes() },
+                onLater = { navController.returnToFocusEyes() },
+                onContinue = { navController.returnToFocusEyes() },
             )
         }
         composable(Routes.HAND_WARNING) {
-            HandWarningScreen(onDismiss = { navController.popBackStack() })
+            HandWarningScreen(onDismiss = { navController.returnToFocusEyes() })
         }
         composable(Routes.FOCUS_COMPLETE) {
             FocusCompleteScreen(
@@ -335,6 +446,7 @@ fun WoliApp(activity: ComponentActivity, startRoute: String? = null) {
                 onOpen = { route -> navController.navigate(route) },
             )
         }
+    }
     }
 }
 

@@ -8,10 +8,10 @@ data class HandApproachFrame(
 ) {
     companion object {
         // ponytail: center band is 40% width × 50% height; tune constants in HandApproachEvalConfig.
-        private const val CENTER_MIN_X = 0.30f
-        private const val CENTER_MAX_X = 0.70f
-        private const val CENTER_MIN_Y = 0.25f
-        private const val CENTER_MAX_Y = 0.75f
+        private const val CENTER_MIN_X = 0.20f
+        private const val CENTER_MAX_X = 0.80f
+        private const val CENTER_MIN_Y = 0.15f
+        private const val CENTER_MAX_Y = 0.85f
 
         fun fromBoundingBox(
             handDetected: Boolean,
@@ -41,12 +41,13 @@ data class HandApproachFrame(
 
 /** Tunable thresholds for hand-near hysteresis and debounce windows. */
 data class HandApproachEvalConfig(
-    val nearAreaThreshold: Float = 0.18f,
-    val exitAreaThreshold: Float = 0.08f,
-    val enterFramesRequired: Int = 4,
-    val enterWindowSize: Int = 6,
-    val exitFramesRequired: Int = 8,
-    val exitWindowSize: Int = 10,
+    // ponytail: Jump2 640p 전면 분석 기준; 센서 전환 전 마지막 카메라 튜닝.
+    val nearAreaThreshold: Float = 0.035f,
+    val exitAreaThreshold: Float = 0.022f,
+    val enterFramesRequired: Int = 2,
+    val enterWindowSize: Int = 3,
+    val exitFramesRequired: Int = 5,
+    val exitWindowSize: Int = 7,
 )
 
 /** Pure debounced near/far state machine for camera hand approach. */

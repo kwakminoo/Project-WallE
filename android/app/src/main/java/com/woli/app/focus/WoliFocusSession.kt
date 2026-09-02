@@ -6,6 +6,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlin.math.max
 import kotlin.math.min
 
@@ -50,6 +54,90 @@ enum class WoliFocusExitReason {
     Completed,
     MissionUnlocked,
     UserQuit,
+}
+
+fun WoliFocusExitReason?.isEarlyUnlock(): Boolean {
+    return this == WoliFocusExitReason.MissionUnlocked || this == WoliFocusExitReason.UserQuit
+}
+
+data class WoliDailyFocusStat(
+    val day: LocalDate,
+    val dayLabel: String,
+    val focusMinutes: Int,
+    val handWarnings: Int,
+    val earlyUnlocks: Int,
+)
+
+fun List<WoliFocusSession>.dailyFocusStats(
+    days: Int = 7,
+    zone: ZoneId = ZoneId.systemDefault(),
+    today: LocalDate = LocalDate.now(zone),
+): List<WoliDailyFocusStat> {
+    val dayRange = (days - 1 downTo 0).map { today.minusDays(it.toLong()) }
+    val labelFormat = DateTimeFormatter.ofPattern("M/d")
+    val buckets = dayRange.associateWith { day ->
+        WoliDailyFocusStat(day, day.format(labelFormat), 0, 0, 0)
+    }.toMutableMap()
+
+    for (session in this) {
+        val millis = session.completedAtMillis ?: session.startedAtMillis
+        val day = Instant.ofEpochMilli(millis).atZone(zone).toLocalDate()
+        val bucket = buckets[day] ?: continue
+        buckets[day] = bucket.copy(
+            focusMinutes = bucket.focusMinutes + (session.focusedElapsedMillis() / 60_000L).toInt(),
+            handWarnings = bucket.handWarnings + session.handWarningCount,
+            earlyUnlocks = bucket.earlyUnlocks + if (session.exitReason.isEarlyUnlock()) 1 else 0,
+        )
+    }
+
+    return dayRange.map { buckets.getValue(it) }
+}
+
+/** ponytail: shell 통계 화면용; 실제 세션 기록이 생기면 StatsScreen이 실데이터를 우선한다. */
+object WoliFocusSessionDemos {
+    fun sampleHistory(
+        zone: ZoneId = ZoneId.systemDefault(),
+        today: LocalDate = LocalDate.now(zone),
+    ): List<WoliFocusSession> {
+        fun at(dayOffset: Long, hour: Int, minute: Int = 0): Long {
+            return today.minusDays(dayOffset)
+                .atTime(hour, minute)
+                .atZone(zone)
+                .toInstant()
+                .toEpochMilli()
+        }
+
+        fun session(
+            id: String,
+            startedAtMillis: Long,
+            plannedMinutes: Int,
+            focusedMinutes: Int,
+            handWarnings: Int,
+            exitReason: WoliFocusExitReason,
+        ): WoliFocusSession {
+            val focusedMillis = focusedMinutes * 60_000L
+            return WoliFocusSession(
+                id = id,
+                config = WoliFocusSessionConfig(durationMinutes = plannedMinutes),
+                startedAtMillis = startedAtMillis,
+                endsAtMillis = startedAtMillis + plannedMinutes * 60_000L,
+                completedAtMillis = startedAtMillis + focusedMillis,
+                exitReason = exitReason,
+                handWarningCount = handWarnings,
+            )
+        }
+
+        return listOf(
+            session("demo_d6_am", at(6, 9, 30), plannedMinutes = 30, focusedMinutes = 28, handWarnings = 1, exitReason = WoliFocusExitReason.Completed),
+            session("demo_d5_a", at(5, 13, 0), plannedMinutes = 50, focusedMinutes = 50, handWarnings = 2, exitReason = WoliFocusExitReason.Completed),
+            session("demo_d5_b", at(5, 20, 15), plannedMinutes = 25, focusedMinutes = 12, handWarnings = 1, exitReason = WoliFocusExitReason.MissionUnlocked),
+            session("demo_d3_long", at(3, 10, 0), plannedMinutes = 90, focusedMinutes = 90, handWarnings = 0, exitReason = WoliFocusExitReason.Completed),
+            session("demo_d2", at(2, 19, 0), plannedMinutes = 45, focusedMinutes = 35, handWarnings = 3, exitReason = WoliFocusExitReason.UserQuit),
+            session("demo_d1_a", at(1, 8, 0), plannedMinutes = 60, focusedMinutes = 60, handWarnings = 2, exitReason = WoliFocusExitReason.Completed),
+            session("demo_d1_b", at(1, 21, 30), plannedMinutes = 50, focusedMinutes = 50, handWarnings = 4, exitReason = WoliFocusExitReason.Completed),
+            session("demo_today", at(0, 15, 45), plannedMinutes = 40, focusedMinutes = 38, handWarnings = 1, exitReason = WoliFocusExitReason.Completed),
+        )
+    }
 }
 
 object WoliFocusSessionController {

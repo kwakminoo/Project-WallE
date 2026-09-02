@@ -60,6 +60,7 @@ class WoliFocusNotificationPermissionsTest {
                 FocusNotificationPermissionItem.BatteryOptimization,
                 FocusNotificationPermissionItem.PhoneBundle,
                 FocusNotificationPermissionItem.Contacts,
+                FocusNotificationPermissionItem.Camera,
             ),
             pending.missingItems,
         )

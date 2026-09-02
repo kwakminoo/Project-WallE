@@ -17,8 +17,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -27,10 +30,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -42,27 +45,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.woli.app.call.WoliCallCenter
 import com.woli.app.focus.WoliFocusNotificationPermissions
+import com.woli.app.focus.WoliFocusSessionDemos
 import com.woli.app.focus.WoliFocusSessionController
+import com.woli.app.focus.dailyFocusStats
 import com.woli.app.focus.formatDurationKorean
-import com.woli.app.notification.WoliReplyHistoryResultType
-import com.woli.app.notification.WoliReplyHistoryStore
+import com.woli.app.focus.isEarlyUnlock
 import com.woli.app.ui.components.StatCard
-import com.woli.app.ui.components.WoliSecondaryButton
 import com.woli.app.ui.components.WoliPrimaryButton
+import com.woli.app.ui.components.WoliSecondaryButton
 import com.woli.app.ui.components.WoliRobotMascot
 import com.woli.app.ui.theme.WoliBlack
 import com.woli.app.ui.theme.WoliMuted
+import com.woli.app.ui.theme.WoliOrange
 import com.woli.app.ui.theme.WoliText
+import com.woli.app.ui.theme.WoliWarning
 import com.woli.app.ui.theme.WoliYellow
-import kotlinx.coroutines.delay
 
 @Composable
 fun HomeScreen(
     onStartFocus: () -> Unit,
     onOpenStats: () -> Unit,
-    onOpenMissions: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenPermissionSetup: () -> Unit,
 ) {
@@ -118,9 +121,13 @@ fun HomeScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(WoliBlack)
-            .padding(horizontal = 20.dp),
+            .background(WoliBlack),
     ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 20.dp),
+        ) {
         Spacer(modifier = Modifier.height(28.dp))
         Text(
             text = "안녕! 나는 월이야.\n오늘도 함께 집중해볼까?",
@@ -163,37 +170,82 @@ fun HomeScreen(
         Spacer(modifier = Modifier.height(18.dp))
         WoliPrimaryButton(text = "집중 시작하기", onClick = onStartFocus)
         Spacer(modifier = Modifier.height(16.dp))
+        }
         BottomNavBar(
             selected = NavTab.Home,
             onHome = {},
             onStats = onOpenStats,
-            onMissions = onOpenMissions,
             onSettings = onOpenSettings,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            docked = true,
         )
-        Spacer(modifier = Modifier.height(12.dp))
     }
 }
 
-enum class NavTab { Home, Stats, Missions, Settings }
+enum class NavTab { Home, Stats, Settings }
 
 @Composable
 fun BottomNavBar(
     selected: NavTab,
     onHome: () -> Unit,
     onStats: () -> Unit,
-    onMissions: () -> Unit,
     onSettings: () -> Unit,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+    shape: Shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp),
+    applyNavigationBarsPadding: Boolean = true,
+    docked: Boolean = false,
 ) {
+    val barColor = Color(0xFF141414)
+    val dockedShape = RoundedCornerShape(
+        topStart = 18.dp,
+        topEnd = 18.dp,
+        bottomStart = 0.dp,
+        bottomEnd = 0.dp,
+    )
+
+    if (docked) {
+        Column(
+            modifier = modifier.background(color = barColor, shape = dockedShape),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp, bottom = 12.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                NavItem("홈", Icons.Default.Home, selected == NavTab.Home, onHome)
+                NavItem("통계", Icons.Default.BarChart, selected == NavTab.Stats, onStats)
+                NavItem("설정", Icons.Default.Settings, selected == NavTab.Settings, onSettings)
+            }
+            Spacer(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.navigationBars),
+            )
+        }
+        return
+    }
+
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFF141414), RoundedCornerShape(18.dp))
-            .padding(vertical = 10.dp),
+        modifier = modifier
+            .background(
+                color = barColor,
+                shape = shape,
+            )
+            .then(
+                if (applyNavigationBarsPadding) {
+                    Modifier.windowInsetsPadding(WindowInsets.navigationBars)
+                } else {
+                    Modifier
+                },
+            )
+            .padding(top = 10.dp, bottom = 12.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
         NavItem("홈", Icons.Default.Home, selected == NavTab.Home, onHome)
         NavItem("통계", Icons.Default.BarChart, selected == NavTab.Stats, onStats)
-        NavItem("미션", Icons.Default.Extension, selected == NavTab.Missions, onMissions)
         NavItem("설정", Icons.Default.Settings, selected == NavTab.Settings, onSettings)
     }
 }
@@ -235,71 +287,176 @@ private fun NavItem(
 }
 
 @Composable
-fun StatsScreen(onBackHome: () -> Unit, onMissions: () -> Unit, onSettings: () -> Unit) {
-    val context = LocalContext.current
+fun StatsScreen(onBackHome: () -> Unit, onSettings: () -> Unit) {
     val focusHistory by WoliFocusSessionController.history.collectAsState()
-    val callHistory by WoliCallCenter.history.collectAsState()
-    val replyHistory by WoliReplyHistoryStore.entries.collectAsState()
-
-    LaunchedEffect(context) {
-        WoliReplyHistoryStore.load(context)
+    val statsHistory = remember(focusHistory) {
+        focusHistory.ifEmpty { WoliFocusSessionDemos.sampleHistory() }
     }
+    val dailyStats = remember(statsHistory) { statsHistory.dailyFocusStats() }
 
-    val totalFocusMillis = focusHistory.sumOf { session ->
-        session.elapsedMillis(session.completedAtMillis ?: System.currentTimeMillis())
-    }
-    val handWarnings = focusHistory.sumOf { it.handWarningCount }
-    val sentReplies = replyHistory.count { it.resultType == WoliReplyHistoryResultType.Sent }
+    val totalFocusMillis = statsHistory.sumOf { it.focusedElapsedMillis() }
+    val handWarnings = statsHistory.sumOf { it.handWarningCount }
+    val earlyUnlocks = statsHistory.count { it.exitReason.isEarlyUnlock() }
 
     ShellTabScaffold(
         title = "집중 통계",
+        subtitle = "최근 7일 기록",
         selected = NavTab.Stats,
         onHome = onBackHome,
         onStats = {},
-        onMissions = onMissions,
         onSettings = onSettings,
     ) {
-        StatCard(title = "누적 집중", value = totalFocusMillis.formatDurationKorean())
-        Spacer(modifier = Modifier.height(10.dp))
-        StatCard(title = "손 접근 경고", value = "${handWarnings}회")
-        Spacer(modifier = Modifier.height(10.dp))
-        StatCard(title = "전화 감지", value = "${callHistory.size}회")
-        Spacer(modifier = Modifier.height(10.dp))
-        StatCard(title = "답장 성공", value = "${sentReplies}회")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            StatsSummaryChip(
+                title = "누적 집중",
+                value = totalFocusMillis.formatDurationKorean(),
+                color = WoliYellow,
+                modifier = Modifier.weight(1f),
+            )
+            StatsSummaryChip(
+                title = "손 접근 경고",
+                value = "${handWarnings}회",
+                color = WoliOrange,
+                modifier = Modifier.weight(1f),
+            )
+            StatsSummaryChip(
+                title = "중도 해제",
+                value = "${earlyUnlocks}회",
+                color = WoliWarning,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Spacer(modifier = Modifier.height(20.dp))
+        DailyBarChartSection(
+            title = "누적 집중",
+            color = WoliYellow,
+            points = dailyStats.map { it.dayLabel to it.focusMinutes },
+            formatValue = { minutes -> if (minutes >= 60) "${minutes / 60}h" else "${minutes}m" },
+        )
+        Spacer(modifier = Modifier.height(22.dp))
+        DailyBarChartSection(
+            title = "손 접근 경고",
+            color = WoliOrange,
+            points = dailyStats.map { it.dayLabel to it.handWarnings },
+            formatValue = { count -> "${count}회" },
+        )
+        Spacer(modifier = Modifier.height(22.dp))
+        DailyBarChartSection(
+            title = "중도 해제",
+            color = WoliWarning,
+            points = dailyStats.map { it.dayLabel to it.earlyUnlocks },
+            formatValue = { count -> "${count}회" },
+        )
+        Spacer(modifier = Modifier.height(8.dp))
     }
 }
 
 @Composable
-fun MissionsScreen(
-    onBackHome: () -> Unit,
-    onStats: () -> Unit,
-    onSettings: () -> Unit,
-    onOpenBreathing: () -> Unit,
-    onOpenMemory: () -> Unit,
+private fun StatsSummaryChip(
+    title: String,
+    value: String,
+    color: Color,
+    modifier: Modifier = Modifier,
 ) {
-    ShellTabScaffold(
-        title = "미션",
-        selected = NavTab.Missions,
-        onHome = onBackHome,
-        onStats = onStats,
-        onMissions = {},
-        onSettings = onSettings,
+    Column(
+        modifier = modifier
+            .background(Color(0xFF1C1C1E), RoundedCornerShape(14.dp))
+            .padding(horizontal = 10.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        StatCard(title = "리듬 미션", value = "중도 해제 시 실행")
-        Spacer(modifier = Modifier.height(10.dp))
-        StatCard(
-            title = "호흡 미션",
-            value = "30초 호흡으로 충동 멈춤",
-            actionLabel = "시작",
-            onAction = onOpenBreathing,
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .background(color, CircleShape),
         )
-        Spacer(modifier = Modifier.height(10.dp))
-        StatCard(
-            title = "기억력 미션",
-            value = "간단한 패턴 기억하기",
-            actionLabel = "시작",
-            onAction = onOpenMemory,
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = title,
+            color = WoliMuted,
+            fontSize = 11.sp,
+            textAlign = TextAlign.Center,
+            lineHeight = 14.sp,
         )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = value,
+            color = WoliText,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            lineHeight = 18.sp,
+        )
+    }
+}
+
+@Composable
+private fun DailyBarChartSection(
+    title: String,
+    color: Color,
+    points: List<Pair<String, Int>>,
+    formatValue: (Int) -> String,
+) {
+    val maxValue = points.maxOfOrNull { it.second }?.coerceAtLeast(1) ?: 1
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF141414), RoundedCornerShape(16.dp))
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+    ) {
+        Text(text = title, color = color, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(132.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            points.forEach { (label, value) ->
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    if (value > 0) {
+                        Text(
+                            text = formatValue(value),
+                            color = color,
+                            fontSize = 9.sp,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    val barHeight = if (value > 0) {
+                        (value.toFloat() / maxValue * 88f).coerceAtLeast(6f)
+                    } else {
+                        4f
+                    }
+                    Box(
+                        modifier = Modifier
+                            .width(18.dp)
+                            .height(barHeight.dp)
+                            .background(
+                                color.copy(alpha = if (value > 0) 0.92f else 0.18f),
+                                RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp),
+                            ),
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = label,
+                        color = WoliMuted,
+                        fontSize = 10.sp,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -307,9 +464,9 @@ fun MissionsScreen(
 fun SettingsScreen(
     onBackHome: () -> Unit,
     onStats: () -> Unit,
-    onMissions: () -> Unit,
+    onOpenPermissionSetup: () -> Unit,
     onOpenGallery: () -> Unit,
-    onOpenDevice: () -> Unit,
+    onOpenBluetoothSettings: () -> Unit,
     onOpenContacts: () -> Unit,
     onOpenNotificationPolicy: () -> Unit,
     onOpenNotificationDiagnostics: () -> Unit,
@@ -318,13 +475,14 @@ fun SettingsScreen(
 ) {
     ShellTabScaffold(
         title = "설정",
+        subtitle = "집중 세션과 알림/전화 연동 상태",
         selected = NavTab.Settings,
         onHome = onBackHome,
         onStats = onStats,
-        onMissions = onMissions,
         onSettings = {},
     ) {
-        SettingsRow("월이 기기 연결", onOpenDevice)
+        SettingsRow("권한 설정", onOpenPermissionSetup)
+        SettingsRow("블루투스 연결", onOpenBluetoothSettings)
         SettingsRow("중요 연락처", onOpenContacts)
         SettingsRow("집중 알림 기준", onOpenNotificationPolicy)
         SettingsRow("화면 상태 갤러리", onOpenGallery)
@@ -351,24 +509,28 @@ private fun SettingsRow(label: String, onClick: () -> Unit) {
 @Composable
 private fun ShellTabScaffold(
     title: String,
+    subtitle: String,
     selected: NavTab,
     onHome: () -> Unit,
     onStats: () -> Unit,
-    onMissions: () -> Unit,
     onSettings: () -> Unit,
     content: @Composable () -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(WoliBlack)
-            .padding(horizontal = 20.dp),
+            .background(WoliBlack),
     ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 20.dp),
+        ) {
         Spacer(modifier = Modifier.height(28.dp))
         Text(text = title, color = WoliText, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "집중 세션과 알림/전화 연동 상태",
+            text = subtitle,
             color = WoliMuted,
             fontSize = 13.sp,
         )
@@ -380,167 +542,16 @@ private fun ShellTabScaffold(
         ) {
             content()
         }
+        }
         BottomNavBar(
             selected = selected,
             onHome = onHome,
             onStats = onStats,
-            onMissions = onMissions,
             onSettings = onSettings,
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-    }
-}
-
-@Composable
-fun BreathingMissionScreen(onBack: () -> Unit) {
-    var remainingSeconds by remember { mutableIntStateOf(30) }
-    var running by remember { mutableStateOf(false) }
-    val elapsed = 30 - remainingSeconds
-    val phase = when ((elapsed / 4) % 3) {
-        0 -> "들이마시기"
-        1 -> "멈추기"
-        else -> "내쉬기"
-    }
-
-    LaunchedEffect(running) {
-        while (running && remainingSeconds > 0) {
-            delay(1_000L)
-            remainingSeconds -= 1
-        }
-        if (remainingSeconds <= 0) running = false
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(WoliBlack)
-            .padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        BackTitle(title = "호흡 미션", onBack = onBack)
-        Spacer(modifier = Modifier.height(28.dp))
-        Box(
             modifier = Modifier
-                .size(176.dp)
-                .background(WoliYellow.copy(alpha = 0.18f), CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = phase,
-                color = WoliYellow,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-        Spacer(modifier = Modifier.height(22.dp))
-        Text(
-            text = "${remainingSeconds}초",
-            color = WoliText,
-            fontSize = 36.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = if (remainingSeconds == 0) "충동을 멈추는 미션을 완료했습니다." else "잠금 해제 전 호흡을 안정시키는 미션입니다.",
-            color = WoliMuted,
-            fontSize = 14.sp,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(modifier = Modifier.weight(1f))
-        WoliPrimaryButton(
-            text = if (running) "진행 중" else if (remainingSeconds == 0) "다시 시작" else "시작",
-            onClick = {
-                if (remainingSeconds == 0) remainingSeconds = 30
-                running = true
-            },
-        )
-        Spacer(modifier = Modifier.height(10.dp))
-        WoliSecondaryButton(
-            text = "초기화",
-            onClick = {
-                running = false
-                remainingSeconds = 30
-            },
-        )
-    }
-}
-
-@Composable
-fun MemoryMissionScreen(onBack: () -> Unit) {
-    val pattern = remember { listOf("노랑", "파랑", "노랑", "초록") }
-    var input by remember { mutableStateOf(emptyList<String>()) }
-    var message by remember { mutableStateOf("패턴을 보고 같은 순서로 입력하세요.") }
-    val palette = listOf("노랑", "파랑", "초록")
-
-    fun reset() {
-        input = emptyList()
-        message = "패턴을 보고 같은 순서로 입력하세요."
-    }
-
-    fun submit(value: String) {
-        val next = input + value
-        input = next
-        if (pattern.take(next.size) != next) {
-            message = "순서가 달라졌습니다. 다시 시도하세요."
-            input = emptyList()
-            return
-        }
-        if (next.size == pattern.size) {
-            message = "기억력 미션을 완료했습니다."
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(WoliBlack)
-            .padding(20.dp),
-    ) {
-        BackTitle(title = "기억력 미션", onBack = onBack)
-        Spacer(modifier = Modifier.height(24.dp))
-        Text("패턴", color = WoliMuted, fontSize = 13.sp)
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            pattern.forEach { label ->
-                MissionToken(label = label, active = true, onClick = {})
-            }
-        }
-        Spacer(modifier = Modifier.height(22.dp))
-        Text("입력", color = WoliMuted, fontSize = 13.sp)
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            pattern.indices.forEach { index ->
-                MissionToken(label = input.getOrNull(index) ?: "-", active = input.getOrNull(index) != null, onClick = {})
-            }
-        }
-        Spacer(modifier = Modifier.height(18.dp))
-        Text(message, color = WoliText, fontSize = 15.sp)
-        Spacer(modifier = Modifier.weight(1f))
-        palette.forEach { label ->
-            WoliSecondaryButton(text = label, onClick = { submit(label) })
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-        WoliPrimaryButton(text = "다시 시작", onClick = ::reset)
-    }
-}
-
-@Composable
-private fun MissionToken(label: String, active: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(width = 72.dp, height = 46.dp)
-            .background(
-                if (active) WoliYellow.copy(alpha = 0.22f) else Color(0xFF1C1C1E),
-                RoundedCornerShape(12.dp),
-            )
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            color = if (active) WoliYellow else WoliMuted,
-            fontWeight = FontWeight.Bold,
-            fontSize = 13.sp,
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            docked = true,
         )
     }
 }

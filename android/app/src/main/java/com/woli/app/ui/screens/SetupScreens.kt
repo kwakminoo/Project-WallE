@@ -219,7 +219,11 @@ private fun OptionToggle(
 }
 
 @Composable
-fun DeviceConnectScreen(onBack: () -> Unit, onNext: () -> Unit) {
+fun DeviceConnectScreen(
+    onBack: () -> Unit,
+    onNext: (() -> Unit)? = null,
+    title: String = if (onNext == null) "블루투스 연결" else "월이 기기 연결",
+) {
     val context = LocalContext.current
     val bleClient = remember(context) { WoliBleDeviceClient(context) }
     val deviceState by WoliDeviceCenter.state.collectAsState()
@@ -264,9 +268,17 @@ fun DeviceConnectScreen(onBack: () -> Unit, onNext: () -> Unit) {
             .background(WoliBlack)
             .padding(20.dp),
     ) {
-        BackTitle(title = "월이 기기 연결", onBack = onBack)
+        BackTitle(title = title, onBack = onBack)
         Spacer(modifier = Modifier.height(8.dp))
-        Text("BLE로 월이 로봇을 연결하거나 시뮬레이션으로 시연하세요.", color = WoliMuted, fontSize = 14.sp)
+        Text(
+            text = if (onNext == null) {
+                "설정에서 월이 로봇을 BLE로 연결하거나 시뮬레이션으로 시연할 수 있습니다."
+            } else {
+                "BLE로 월이 로봇을 연결하거나 시뮬레이션으로 시연하세요."
+            },
+            color = WoliMuted,
+            fontSize = 14.sp,
+        )
         Spacer(modifier = Modifier.height(24.dp))
         devices.forEach { device ->
             DeviceRow(
@@ -292,10 +304,18 @@ fun DeviceConnectScreen(onBack: () -> Unit, onNext: () -> Unit) {
             onClick = ::requestOrScan,
         )
         Spacer(modifier = Modifier.height(10.dp))
-        WoliPrimaryButton(
-            text = "다음",
-            onClick = onNext,
-        )
+        if (onNext != null) {
+            WoliPrimaryButton(
+                text = "다음",
+                onClick = onNext,
+            )
+        } else {
+            WoliPrimaryButton(
+                text = "완료",
+                onClick = onBack,
+                enabled = deviceState.isConnected,
+            )
+        }
     }
 }
 
@@ -649,7 +669,6 @@ fun FocusNotificationPermissionScreen(
     ) { refreshAccessState() }
 
     val missingItems = permissionState.missingItems
-    val optionalItems = permissionState.optionalMissingItems
 
     Column(
         modifier = Modifier
@@ -678,26 +697,6 @@ fun FocusNotificationPermissionScreen(
                         .padding(18.dp),
                 ) {
                     missingItems.forEachIndexed { index, item ->
-                        if (index > 0) {
-                            Spacer(modifier = Modifier.height(14.dp))
-                        }
-                        PermissionStatusRow(
-                            title = item.statusTitle(),
-                            value = item.statusDescription(),
-                            active = false,
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(18.dp))
-            }
-            if (optionalItems.isNotEmpty()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFF1C1C1E), RoundedCornerShape(18.dp))
-                        .padding(18.dp),
-                ) {
-                    optionalItems.forEachIndexed { index, item ->
                         if (index > 0) {
                             Spacer(modifier = Modifier.height(14.dp))
                         }
@@ -755,20 +754,6 @@ fun FocusNotificationPermissionScreen(
                 )
                 Spacer(modifier = Modifier.height(10.dp))
             }
-            optionalItems.forEach { item ->
-                WoliSecondaryButton(
-                    text = item.buttonLabel(),
-                    onClick = {
-                        when (item) {
-                            FocusNotificationPermissionItem.Camera -> {
-                                cameraPermissionLauncher.launch(CameraHandApproachAccess.requiredPermission())
-                            }
-                            else -> Unit
-                        }
-                    },
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-            }
             if (missingItems.isNotEmpty()) {
                 WoliSecondaryButton(
                     text = "앱별 검증 열기",
@@ -779,7 +764,7 @@ fun FocusNotificationPermissionScreen(
         }
         Spacer(modifier = Modifier.height(10.dp))
         WoliPrimaryButton(
-            text = "권한 없이 계속",
+            text = if (permissionState.allGranted) "다음" else "권한 없이 계속",
             onClick = onNext,
         )
     }
@@ -803,7 +788,7 @@ private fun FocusNotificationPermissionItem.statusDescription(): String {
         FocusNotificationPermissionItem.BatteryOptimization -> "배터리 최적화 예외 허용 필요"
         FocusNotificationPermissionItem.PhoneBundle -> "전화 감지·발신자 식별·전화 제어 권한 필요"
         FocusNotificationPermissionItem.Contacts -> "중요 연락처 선택 권한 필요"
-        FocusNotificationPermissionItem.Camera -> "집중 중 손 접근 감지용 (선택)"
+        FocusNotificationPermissionItem.Camera -> "집중 중 손 접근 감지용 카메라 권한 필요"
     }
 }
 
@@ -1273,6 +1258,7 @@ fun ShellGalleryScreen(onBack: () -> Unit, onOpen: (String) -> Unit) {
         "home" to "홈",
         "focus_time" to "집중 시간 설정",
         "device_connect" to "기기 연결",
+        "bluetooth_settings" to "블루투스 연결",
         "important_contacts" to "중요 연락처",
         "focus_notification_permission" to "집중 알림 전달",
         "notification_diagnostics" to "앱별 알림 검증",

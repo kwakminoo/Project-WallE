@@ -1,0 +1,77 @@
+WOLI V1.1 권장 조립 순서
+=========================
+
+1. 01 Main Chassis
+- 바닥면 DOWN, Open cavity UP으로 출력
+
+2. N20 Motor + Metal Bracket + Ø43 Wheel ×2
+- Motor bracket slot으로 위치 미세 보정
+- Wheel이 body와 닿지 않는지 확인
+
+3. 19B KLIFE Battery Tray
+- M3×6 ×4 권장
+- Chassis blind pilot에 저토크로 self-thread
+- Battery 장착 후 strap/Velcro 고정
+
+4. Ball Caster
+- 09 Caster Cartridge
+- 실제 22×17×15 caster
+- 09B Tab Retainer
+- Cartridge→Chassis: M3×8 ×4
+- Retainer→Cartridge: M3×6 ×2
+- 실제 캐스터에는 구멍을 뚫지 않음
+
+5. 21S 20mm Electronics Standoff ×4
+
+6. 21 Upper Electronics Deck
+- Flat Deck
+- M3×30 ×4를 Deck→Standoff→Chassis pilot 순으로 체결
+
+7. 04 Main PCB Tray
+- 전용 Deck boss
+- M3×6 ×4
+
+8. 15 TB6612FNG Tray
+- 전용 Deck boss
+- M3×6 ×2
+
+9. 16 USB-C Holder
+- 전용 Deck boss
+- M3×6 ×2
+
+10. MG90S / Limit Switch
+- 05 Servo Mount / 06 Limit Mount
+- 최종 Lock 접점은 실물 테스트 후 위치 고정
+
+11. VL53L0X
+- Top Cover 내부 front guide rail에 삽입
+- 전면 single rectangular optical opening과 정렬
+
+12. Top Cover
+- 내부 locating skirt를 chassis 안쪽에 삽입
+- Chassis 좌/우 측면 M3×10 ×4 체결
+
+13. Phone Neck
+- Ø16 Neck base를 Top Cover recess에 넣음
+- M3×10 ×4
+- reinforced blind pilot 사용
+
+14. Rear Service Hatch
+- 기본: 13 closed hatch
+- USB 외부 노출 실험: 13B TEST hatch
+- M3×6 ×2
+
+15. Servo Lock
+- Fit Test 폴더의 18 / 22 / 26 / 30mm arm으로 실제 holder 차단거리 확인
+- Phone 자체를 누르지 않고 Holder release path만 차단
+
+16. 전체 점검
+- Wheel rotation
+- Caster ground contact
+- Battery restraint
+- Deck clearance
+- Top cover fit
+- ToF optical path
+- Phone sag
+- Servo stall 없음
+- Wire pinch 없음

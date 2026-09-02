@@ -1,0 +1,33 @@
+WOLI V1.1 RELEASE INDEX
+=======================
+
+02_STL_RELEASE
+실제 현재 설계 기준 출력 파트
+- 01 Main Chassis
+- 03 Top Cover
+- 04 Main PCB Tray
+- 05 Servo Mount
+- 06 Limit Switch Mount
+- 08 Phone Neck Ø16
+- 09 Caster Cartridge
+- 09B Caster Retainer
+- 10 Cable Clip
+- 13 Rear Service Hatch
+- 15 TB6612FNG Tray
+- 16 USB-C Holder
+- 17 ToF Bezel (cosmetic optional)
+- 19B KLIFE Battery Tray
+- 20 Cable Bridge
+- 21 Upper Electronics Deck
+- 21S 20mm Standoff (4개 출력)
+
+03_STL_FIT_TEST
+- 1/2/3mm Caster Shim
+- USB-C Hatch TEST
+- Servo Horn Adapter
+- Lock Arm 18/22/26/30mm
+- Lock Contact Pad
+- Servo Datum Jig
+- Neck Trim
+
+V0.x obsolete print files는 Release 폴더에 넣지 않았습니다.

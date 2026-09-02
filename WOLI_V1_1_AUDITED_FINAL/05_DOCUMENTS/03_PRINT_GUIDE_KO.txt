@@ -1,0 +1,47 @@
+WOLI V1.1 PRINT GUIDE
+=====================
+
+Material
+- Black PLA
+
+Recommended
+- Nozzle 0.4mm
+- Layer 0.20mm
+- Exterior cover 0.16~0.20mm
+- Walls 4
+- Top/Bottom 5~6 layers
+- General infill 25%
+- Structural parts 30~40%
+
+Minimum build area
+- 약155×195mm 이상 권장
+
+Orientation
+01 Main Chassis
+- Floor DOWN / cavity UP
+
+03 Top Cover
+- 180° 뒤집어서 exterior roof DOWN
+- cavity UP
+- internal front ToF guide에만 필요한 경우 제한적 support
+
+21 Upper Electronics Deck
+- Plate DOWN / mounting bosses UP
+
+21S Standoff
+- Vertical
+- 4개 출력
+
+19B Battery Tray
+- Base DOWN
+
+09 / 09B Caster parts
+- Flat DOWN
+
+08 Phone Neck
+- Base DOWN
+- Ball 주변 support 사용 권장
+
+금지
+- STL 전체 Scale 조정으로 공차 해결 금지
+- SCAD parameter를 수정 후 STL 재생성

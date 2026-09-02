@@ -14,6 +14,7 @@ class ShellSmokeCheckTest {
             Routes.HOME,
             Routes.FOCUS_TIME,
             Routes.DEVICE_CONNECT,
+            Routes.BLUETOOTH_SETTINGS,
             Routes.IMPORTANT_CONTACTS,
             Routes.FOCUS_NOTIFICATION_PERMISSION,
             Routes.NOTIFICATION_DIAGNOSTICS,
@@ -75,7 +76,7 @@ class ShellSmokeCheckTest {
         assertTrue(FocusSessionNav.handApproachMonitorRoutes.contains(Routes.FOCUS_EYES))
         assertTrue(FocusSessionNav.handApproachMonitorRoutes.contains(Routes.REMAINING_TIME))
         assertTrue(FocusSessionNav.handApproachMonitorRoutes.contains(Routes.IMPORTANT_CALL))
-        assertFalse(FocusSessionNav.handApproachMonitorRoutes.contains(Routes.HAND_WARNING))
+        assertTrue(FocusSessionNav.handApproachMonitorRoutes.contains(Routes.HAND_WARNING))
     }
 
     @Test

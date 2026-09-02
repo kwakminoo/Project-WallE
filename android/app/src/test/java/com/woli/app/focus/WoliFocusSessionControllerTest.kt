@@ -1,6 +1,8 @@
 package com.woli.app.focus
 
 import com.woli.app.device.WoliDeviceProtocol
+import java.time.LocalDate
+import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -125,6 +127,42 @@ class WoliFocusSessionControllerTest {
             WoliFocusSessionController.pendingHardwareCommand.value,
         )
         WoliFocusSessionController.resetForTest()
+    }
+
+    @Test
+    fun dailyFocusStatsBucketsFocusWarningsAndEarlyUnlocksByDay() {
+        val zone = ZoneId.of("Asia/Seoul")
+        val today = LocalDate.of(2026, 9, 2)
+        val history = listOf(
+            WoliFocusSession(
+                id = "a",
+                config = WoliFocusSessionConfig(durationMinutes = 90),
+                startedAtMillis = today.atStartOfDay(zone).toInstant().toEpochMilli(),
+                endsAtMillis = today.atStartOfDay(zone).plusMinutes(90).toInstant().toEpochMilli(),
+                completedAtMillis = today.atStartOfDay(zone).plusMinutes(30).toInstant().toEpochMilli(),
+                exitReason = WoliFocusExitReason.MissionUnlocked,
+                handWarningCount = 2,
+            ),
+            WoliFocusSession(
+                id = "b",
+                config = WoliFocusSessionConfig(durationMinutes = 30),
+                startedAtMillis = today.minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli(),
+                endsAtMillis = today.minusDays(1).atStartOfDay(zone).plusMinutes(30).toInstant().toEpochMilli(),
+                completedAtMillis = today.minusDays(1).atStartOfDay(zone).plusMinutes(20).toInstant().toEpochMilli(),
+                exitReason = WoliFocusExitReason.Completed,
+                handWarningCount = 1,
+            ),
+        )
+
+        val stats = history.dailyFocusStats(days = 2, zone = zone, today = today)
+
+        assertEquals(2, stats.size)
+        assertEquals(30, stats.last().focusMinutes)
+        assertEquals(2, stats.last().handWarnings)
+        assertEquals(1, stats.last().earlyUnlocks)
+        assertEquals(20, stats.first().focusMinutes)
+        assertEquals(1, stats.first().handWarnings)
+        assertEquals(0, stats.first().earlyUnlocks)
     }
 
     @Test

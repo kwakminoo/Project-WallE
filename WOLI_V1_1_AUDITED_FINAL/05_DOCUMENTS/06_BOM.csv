@@ -1,0 +1,13 @@
+﻿Category,Item,Qty,Status
+Drive,N20 geared motor,2,Envelope confirmed
+Drive,Wheel Ø43×17.5,2,Confirmed
+Drive,N20 metal bracket 25×8.5×11.5,2,Confirmed envelope / slots used
+Support,Ball caster 22×17×15,1,Confirmed envelope / clip-fit validation
+Power,KLIFE PD-Q2 10000mAh 68×143×11,1,Confirmed / approx205g
+Control,Main PCB 50×70×approx15,1,Confirmed envelope
+Motor driver,TB6612FNG HW-166 26×26,1,Confirmed plan size
+Power I/O,USB-C female breakout approx12×15,1,Approx plan size / connector approx4.2
+Actuator,MG90S,1,Mount based on supplied product image
+Sensor,Limit switch,1,Envelope based on supplied product image
+Sensor,VL53L0X,1,Envelope based on supplied product image
+Phone,Commercial holder/socket,1,Ø16 fit physical validation

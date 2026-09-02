@@ -1,5 +1,6 @@
 package com.woli.app.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -43,6 +44,7 @@ import com.woli.app.device.WoliDeviceProtocol
 import com.woli.app.focus.WoliFocusExitReason
 import com.woli.app.focus.WoliFocusGuardService
 import com.woli.app.focus.WoliFocusSessionController
+import com.woli.app.focus.RhythmMissionAudio
 import com.woli.app.focus.WoliRhythmChart
 import com.woli.app.focus.WoliRhythmConfig
 import com.woli.app.focus.WoliRhythmEngine
@@ -89,6 +91,8 @@ fun RhythmMissionScreen(onSuccess: () -> Unit, onCancel: () -> Unit) {
     var lastJudgment by remember(attempt) { mutableStateOf<WoliRhythmJudgment?>(null) }
     var lastJudgmentAtMs by remember(attempt) { mutableLongStateOf(-10_000L) }
 
+    BackHandler(enabled = phase == RhythmPhase.PLAYING, onBack = onCancel)
+
     val approachMs = config.approachMs
     val firstSpawnMs = chart.notes.firstOrNull()?.spawnTimeMs(approachMs) ?: config.leadInMs
     val safetyCapMs = config.totalDurationMs() + 1_500L
@@ -97,11 +101,17 @@ fun RhythmMissionScreen(onSuccess: () -> Unit, onCancel: () -> Unit) {
     // 프레임 루프: 경과 시간(ms)을 계산해 놓친 노트를 정리하고 종료를 판단한다.
     LaunchedEffect(attempt) {
         val startNanos = withFrameNanos { it }
+        var lastBeatIndex = -1
         while (true) {
             val frameNanos = withFrameNanos { it }
             val t = (frameNanos - startNanos) / 1_000_000L
             nowMs = t
             engine.update(t)
+            val beatIndex = ((t - config.leadInMs) / config.beatIntervalMs).toInt()
+            if (beatIndex >= 0 && beatIndex != lastBeatIndex) {
+                lastBeatIndex = beatIndex
+                RhythmMissionAudio.playBeat(beatIndex)
+            }
             if (engine.isFinished || t > safetyCapMs) {
                 phase = if (engine.isCleared) RhythmPhase.CLEARED else RhythmPhase.FAILED
                 break
@@ -132,6 +142,7 @@ fun RhythmMissionScreen(onSuccess: () -> Unit, onCancel: () -> Unit) {
             lastJudgment = hit.judgment
             lastJudgmentAtMs = nowMs
             if (hit.judgment == WoliRhythmJudgment.PERFECT || hit.judgment == WoliRhythmJudgment.GOOD) {
+                RhythmMissionAudio.playHit(hit.judgment)
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
             }
         }
@@ -266,14 +277,6 @@ fun RhythmMissionScreen(onSuccess: () -> Unit, onCancel: () -> Unit) {
                     onRetry = { attempt += 1 },
                     onCancel = onCancel,
                 )
-            }
-        }
-
-        // ── 하단 컨트롤 ──
-        Spacer(Modifier.height(10.dp))
-        if (phase == RhythmPhase.PLAYING) {
-            Box(modifier = Modifier.width(220.dp)) {
-                WoliSecondaryButton(text = "그만두고 집중 계속", onClick = onCancel)
             }
         }
     }

@@ -6,10 +6,10 @@ import org.junit.Test
 
 class HandApproachEvaluatorTest {
     private val config = HandApproachEvalConfig(
-        nearAreaThreshold = 0.18f,
-        exitAreaThreshold = 0.08f,
-        enterFramesRequired = 4,
-        enterWindowSize = 6,
+        nearAreaThreshold = 0.10f,
+        exitAreaThreshold = 0.06f,
+        enterFramesRequired = 3,
+        enterWindowSize = 5,
         exitFramesRequired = 8,
         exitWindowSize = 10,
     )
@@ -37,7 +37,7 @@ class HandApproachEvaluatorTest {
     @Test
     fun centerLargeHandWithDebounceEntersNear() {
         val evaluator = HandApproachEvaluator(config)
-        repeat(3) {
+        repeat(2) {
             assertFalse(evaluator.evaluate(nearFrame))
         }
         assertTrue(evaluator.evaluate(nearFrame))
@@ -47,7 +47,7 @@ class HandApproachEvaluatorTest {
     @Test
     fun nearMaintainedWithoutExtraStateFlip() {
         val evaluator = HandApproachEvaluator(config)
-        repeat(4) { evaluator.evaluate(nearFrame) }
+        repeat(3) { evaluator.evaluate(nearFrame) }
         assertTrue(evaluator.evaluate(nearFrame))
         repeat(5) {
             assertTrue(evaluator.evaluate(nearFrame))
@@ -57,7 +57,7 @@ class HandApproachEvaluatorTest {
     @Test
     fun nearReleasesAfterExitDebounce() {
         val evaluator = HandApproachEvaluator(config)
-        repeat(4) { evaluator.evaluate(nearFrame) }
+        repeat(3) { evaluator.evaluate(nearFrame) }
         assertTrue(evaluator.evaluate(nearFrame))
 
         repeat(7) {
@@ -69,7 +69,7 @@ class HandApproachEvaluatorTest {
     @Test
     fun resetClearsNearState() {
         val evaluator = HandApproachEvaluator(config)
-        repeat(4) { evaluator.evaluate(nearFrame) }
+        repeat(3) { evaluator.evaluate(nearFrame) }
         assertTrue(evaluator.evaluate(nearFrame))
 
         evaluator.reset()

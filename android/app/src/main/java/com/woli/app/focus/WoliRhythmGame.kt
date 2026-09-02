@@ -82,8 +82,11 @@ data class WoliRhythmConfig(
             bpm = 85, totalNotes = 16, requiredHits = 10, maxMisfires = 8,
         )
 
-        /** 기본값: 20~30초, 집중해야 통과하는 적당한 마찰. */
-        val Moderate = WoliRhythmConfig()
+        /** 기본값: 20~30초, 집중해야 통과하는 적당한 마찰. 판정은 미션용으로 여유 있게. */
+        val Moderate = WoliRhythmConfig(
+            perfectWindowMs = 120L,
+            goodWindowMs = 220L,
+        )
 
         /** 발표 임팩트용: 4레인·빠른 템포·본격 게임. */
         val Intense = WoliRhythmConfig(

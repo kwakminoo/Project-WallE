@@ -34,7 +34,8 @@ data class FocusNotificationPermissionState(
             phoneState &&
             contacts &&
             callerId &&
-            callControl
+            callControl &&
+            camera
 
     val needsPhoneRuntimePermissions: Boolean
         get() = !phoneState || !callerId || !callControl
@@ -46,11 +47,6 @@ data class FocusNotificationPermissionState(
             if (!batteryOptimizationIgnored) add(FocusNotificationPermissionItem.BatteryOptimization)
             if (needsPhoneRuntimePermissions) add(FocusNotificationPermissionItem.PhoneBundle)
             if (!contacts) add(FocusNotificationPermissionItem.Contacts)
-        }
-
-    /** Optional; focus can start without camera (hand approach disabled). */
-    val optionalMissingItems: List<FocusNotificationPermissionItem>
-        get() = buildList {
             if (!camera) add(FocusNotificationPermissionItem.Camera)
         }
 }

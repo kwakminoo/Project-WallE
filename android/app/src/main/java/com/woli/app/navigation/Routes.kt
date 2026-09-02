@@ -3,10 +3,10 @@ package com.woli.app.navigation
 object Routes {
     const val HOME = "home"
     const val STATS = "stats"
-    const val MISSIONS = "missions"
     const val SETTINGS = "settings"
     const val FOCUS_TIME = "focus_time"
     const val DEVICE_CONNECT = "device_connect"
+    const val BLUETOOTH_SETTINGS = "bluetooth_settings"
     const val IMPORTANT_CONTACTS = "important_contacts"
     const val FOCUS_NOTIFICATION_PERMISSION = "focus_notification_permission"
     const val NOTIFICATION_POLICY = "notification_policy"
@@ -22,7 +22,5 @@ object Routes {
     const val RHYTHM_MISSION = "rhythm_mission"
     const val SESSION_REPORT = "session_report"
     const val SHELL_GALLERY = "shell_gallery"
-    const val BREATHING_MISSION = "breathing_mission"
-    const val MEMORY_MISSION = "memory_mission"
     const val APP_INFO = "app_info"
 }
