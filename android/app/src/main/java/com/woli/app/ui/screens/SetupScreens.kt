@@ -932,11 +932,11 @@ fun MountGuideScreen(onBack: () -> Unit, onStartFocus: () -> Unit) {
         WoliPrimaryButton(
             text = "집중 모드 시작",
             onClick = {
-                val alreadyActive = WoliFocusSessionController.current.value?.isActive == true
                 WoliFocusSessionController.startIfNeeded(System.currentTimeMillis())
-                if (!alreadyActive) {
-                    bleClient.sendPendingFocusCommand()
-                }
+                WoliFocusSessionController.queueHardwareCommand(WoliDeviceProtocol.COMMAND_START)
+                val bleResult = bleClient.sendPendingFocusCommand()
+                actionMessage = bleResult?.userMessage()
+                    ?: "월이에 START 명령을 보낼 수 없습니다."
                 WoliFocusGuardService.start(context)
                 onStartFocus()
             },

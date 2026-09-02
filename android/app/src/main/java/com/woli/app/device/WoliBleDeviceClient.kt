@@ -590,6 +590,8 @@ class WoliBleDeviceClient(private val context: Context) {
             WoliDeviceProtocol.COMMAND_START -> current.copy(locked = true, sessionActive = true)
             WoliDeviceProtocol.COMMAND_SESSION_END,
             WoliDeviceProtocol.COMMAND_STOP -> current.copy(locked = false, sessionActive = false)
+            WoliDeviceProtocol.COMMAND_HAND_NEAR -> current.copy(handNear = true)
+            WoliDeviceProtocol.COMMAND_HAND_FAR -> current.copy(handNear = false)
             WoliDeviceProtocol.COMMAND_STATUS -> current
             else -> current
         }

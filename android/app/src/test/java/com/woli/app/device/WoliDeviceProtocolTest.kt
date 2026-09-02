@@ -74,6 +74,12 @@ class WoliDeviceProtocolTest {
     }
 
     @Test
+    fun handApproachCommandsMatchFirmwareProtocol() {
+        assertEquals("HAND_NEAR", WoliDeviceProtocol.COMMAND_HAND_NEAR)
+        assertEquals("HAND_FAR", WoliDeviceProtocol.COMMAND_HAND_FAR)
+    }
+
+    @Test
     fun sessionEndCommandMatchesFirmwareProtocol() {
         assertEquals("SESSION_END", WoliDeviceProtocol.COMMAND_SESSION_END)
     }

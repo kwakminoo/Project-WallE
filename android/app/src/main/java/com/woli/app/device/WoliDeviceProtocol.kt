@@ -16,6 +16,8 @@ object WoliDeviceProtocol {
     const val COMMAND_STOP = "STOP"
     const val COMMAND_SESSION_END = "SESSION_END"
     const val COMMAND_STATUS = "STATUS"
+    const val COMMAND_HAND_NEAR = "HAND_NEAR"
+    const val COMMAND_HAND_FAR = "HAND_FAR"
 
     fun commandCalibrateLock(angle: Int): String = "CAL_LOCK=${angle.coerceIn(0, 180)}"
 

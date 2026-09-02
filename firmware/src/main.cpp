@@ -7,23 +7,42 @@
  * - status   7e7a0003-1f5f-4c2b-9b6f-2d1b7f4f0100  READ/NOTIFY
  *
  * Status payload: mount=1;lock=0;hand=0;battery=100;session=0
- * Commands: LOCK, UNLOCK, START, SESSION_END, STOP, STATUS, CAL_LOCK=90,
- * CAL_UNLOCK=10
+ * Commands: LOCK, UNLOCK, START, SESSION_END, STOP, STATUS, HAND_NEAR,
+ * HAND_FAR, CAL_LOCK=90, CAL_UNLOCK=10
+ *
+ * Hand approach is driven by the phone camera over BLE (HAND_NEAR/HAND_FAR).
+ * N20 wheel motors retreat on HAND_NEAR and return on HAND_FAR or session end.
  */
 #include <Arduino.h>
 #include <ESP32Servo.h>
 #include <NimBLEDevice.h>
 
 #ifndef SERVO_PIN
-#define SERVO_PIN 18
+#define SERVO_PIN 13
 #endif
 
 #ifndef LIMIT_SWITCH_PIN
-#define LIMIT_SWITCH_PIN 19
+#define LIMIT_SWITCH_PIN -1
 #endif
 
-#ifndef HAND_SENSOR_PIN
-#define HAND_SENSOR_PIN 21
+#ifndef MOTOR_LEFT_IN1
+#define MOTOR_LEFT_IN1 16
+#endif
+
+#ifndef MOTOR_LEFT_IN2
+#define MOTOR_LEFT_IN2 17
+#endif
+
+#ifndef MOTOR_RIGHT_IN3
+#define MOTOR_RIGHT_IN3 18
+#endif
+
+#ifndef MOTOR_RIGHT_IN4
+#define MOTOR_RIGHT_IN4 19
+#endif
+
+#ifndef MOVE_TIME_MS
+#define MOVE_TIME_MS 600
 #endif
 
 #ifndef BATTERY_ADC_PIN
@@ -48,10 +67,6 @@
 
 #ifndef MOUNT_SENSOR_ACTIVE_LOW
 #define MOUNT_SENSOR_ACTIVE_LOW 1
-#endif
-
-#ifndef HAND_SENSOR_ACTIVE_LOW
-#define HAND_SENSOR_ACTIVE_LOW 1
 #endif
 
 #ifndef SENSOR_STABLE_SAMPLES
@@ -109,15 +124,58 @@ struct DebouncedInput {
 
 static NimBLECharacteristic *statusCharacteristic = nullptr;
 static Servo lockServo;
+#if LIMIT_SWITCH_PIN >= 0
 static DebouncedInput mountSensor(LIMIT_SWITCH_PIN, MOUNT_SENSOR_ACTIVE_LOW == 1);
-static DebouncedInput handSensor(HAND_SENSOR_PIN, HAND_SENSOR_ACTIVE_LOW == 1);
+#endif
 static bool locked = false;
 static bool mounted = false;
 static bool handNear = false;
 static bool sessionActive = false;
+static bool isRetreated = false;
 static uint8_t batteryPercent = 100;
 static int lockDegrees = LOCK_SERVO_DEGREES;
 static int unlockDegrees = UNLOCK_SERVO_DEGREES;
+
+static bool motorsEnabled() {
+  return MOTOR_LEFT_IN1 >= 0 && MOTOR_LEFT_IN2 >= 0 && MOTOR_RIGHT_IN3 >= 0 &&
+         MOTOR_RIGHT_IN4 >= 0;
+}
+
+static void stopMotors() {
+  if (!motorsEnabled()) {
+    return;
+  }
+  digitalWrite(MOTOR_LEFT_IN1, LOW);
+  digitalWrite(MOTOR_LEFT_IN2, LOW);
+  digitalWrite(MOTOR_RIGHT_IN3, LOW);
+  digitalWrite(MOTOR_RIGHT_IN4, LOW);
+}
+
+static void moveBackward() {
+  if (!motorsEnabled()) {
+    return;
+  }
+  Serial.println("[WOLI][MOTOR] retreat backward");
+  digitalWrite(MOTOR_LEFT_IN1, LOW);
+  digitalWrite(MOTOR_LEFT_IN2, HIGH);
+  digitalWrite(MOTOR_RIGHT_IN3, LOW);
+  digitalWrite(MOTOR_RIGHT_IN4, HIGH);
+  delay(MOVE_TIME_MS);
+  stopMotors();
+}
+
+static void moveForward() {
+  if (!motorsEnabled()) {
+    return;
+  }
+  Serial.println("[WOLI][MOTOR] return forward");
+  digitalWrite(MOTOR_LEFT_IN1, HIGH);
+  digitalWrite(MOTOR_LEFT_IN2, LOW);
+  digitalWrite(MOTOR_RIGHT_IN3, HIGH);
+  digitalWrite(MOTOR_RIGHT_IN4, LOW);
+  delay(MOVE_TIME_MS);
+  stopMotors();
+}
 
 static uint8_t readBatteryPercent() {
 #if BATTERY_ADC_PIN >= 0
@@ -157,6 +215,38 @@ static void applyServoAngle(int angle) {
   lockServo.write(constrain(angle, 0, 180));
 }
 
+static void releaseRetreatIfNeeded() {
+  if (!isRetreated) {
+    return;
+  }
+  moveForward();
+  isRetreated = false;
+}
+
+static void setHandNear(bool near, bool allowRetreatMotion) {
+  if (handNear == near) {
+    return;
+  }
+
+  const bool wasHandNear = handNear;
+  handNear = near;
+  Serial.printf("[WOLI][HAND] %d -> %d\n", wasHandNear ? 1 : 0, handNear ? 1 : 0);
+
+  if (!allowRetreatMotion || !sessionActive) {
+    notifyStatus();
+    return;
+  }
+
+  if (handNear && !isRetreated) {
+    moveBackward();
+    isRetreated = true;
+  } else if (!handNear && isRetreated) {
+    moveForward();
+    isRetreated = false;
+  }
+  notifyStatus();
+}
+
 static void setSessionActive(bool active) {
   if (sessionActive == active) {
     return;
@@ -164,6 +254,13 @@ static void setSessionActive(bool active) {
 
   sessionActive = active;
   Serial.printf("[WOLI][SESSION] active=%d\n", sessionActive ? 1 : 0);
+}
+
+static void endSession() {
+  setSessionActive(false);
+  releaseRetreatIfNeeded();
+  handNear = false;
+  setLock(false);
 }
 
 static void setLock(bool enable) {
@@ -197,18 +294,14 @@ static void handleCommand(const String &rawCommand) {
   Serial.printf("[WOLI][CMD] %s\n", command.c_str());
 
   if (command == "START") {
+    isRetreated = false;
+    handNear = false;
     setSessionActive(true);
     setLock(true);
     return;
   }
-  if (command == "SESSION_END") {
-    setSessionActive(false);
-    setLock(false);
-    return;
-  }
-  if (command == "STOP") {
-    setSessionActive(false);
-    setLock(false);
+  if (command == "SESSION_END" || command == "STOP") {
+    endSession();
     return;
   }
   if (command == "LOCK") {
@@ -217,6 +310,14 @@ static void handleCommand(const String &rawCommand) {
   }
   if (command == "UNLOCK") {
     setLock(false);
+    return;
+  }
+  if (command == "HAND_NEAR") {
+    setHandNear(true, true);
+    return;
+  }
+  if (command == "HAND_FAR") {
+    setHandNear(false, true);
     return;
   }
   if (command == "STATUS") {
@@ -281,48 +382,56 @@ static void setupBle() {
   }
 }
 
+static void setupMotors() {
+  if (!motorsEnabled()) {
+    Serial.println("[WOLI][BOOT] wheel motors disabled");
+    return;
+  }
+
+  pinMode(MOTOR_LEFT_IN1, OUTPUT);
+  pinMode(MOTOR_LEFT_IN2, OUTPUT);
+  pinMode(MOTOR_RIGHT_IN3, OUTPUT);
+  pinMode(MOTOR_RIGHT_IN4, OUTPUT);
+  stopMotors();
+  Serial.printf("[WOLI][BOOT] wheel motors ready moveMs=%d\n", MOVE_TIME_MS);
+}
+
 void setup() {
   Serial.begin(115200);
   Serial.println("[WOLI][BOOT] starting");
+#if LIMIT_SWITCH_PIN >= 0
   pinMode(LIMIT_SWITCH_PIN, INPUT_PULLUP);
-  pinMode(HAND_SENSOR_PIN, INPUT_PULLUP);
+  mountSensor.syncInitial();
+  mounted = mountSensor.stableValue;
+#else
+  mounted = true;
+#endif
 #if BATTERY_ADC_PIN >= 0
   pinMode(BATTERY_ADC_PIN, INPUT);
 #endif
 
-  mountSensor.syncInitial();
-  handSensor.syncInitial();
-  mounted = mountSensor.stableValue;
-  handNear = handSensor.stableValue;
   batteryPercent = readBatteryPercent();
   Serial.printf("[WOLI][BOOT] mount=%d hand=%d battery=%u\n", mounted ? 1 : 0,
                 handNear ? 1 : 0, static_cast<unsigned>(batteryPercent));
 
+  ESP32PWM::allocateTimer(0);
   lockServo.setPeriodHertz(50);
   lockServo.attach(SERVO_PIN, SERVO_MIN_US, SERVO_MAX_US);
   setLock(false);
-
+  setupMotors();
   setupBle();
   Serial.println("[WOLI][BOOT] firmware ready");
 }
 
 void loop() {
-  const bool mountChanged = mountSensor.update();
-  const bool handChanged = handSensor.update();
-
-  if (mountChanged) {
+#if LIMIT_SWITCH_PIN >= 0
+  if (mountSensor.update()) {
     const bool wasMounted = mounted;
     mounted = mountSensor.stableValue;
     Serial.printf("[WOLI][MOUNT] %d -> %d\n", wasMounted ? 1 : 0, mounted ? 1 : 0);
-  }
-  if (handChanged) {
-    const bool wasHandNear = handNear;
-    handNear = handSensor.stableValue;
-    Serial.printf("[WOLI][HAND] %d -> %d\n", wasHandNear ? 1 : 0, handNear ? 1 : 0);
-  }
-  if (mountChanged || handChanged) {
     notifyStatus();
   }
+#endif
 
   static uint32_t lastHeartbeat = 0;
   const uint32_t now = millis();

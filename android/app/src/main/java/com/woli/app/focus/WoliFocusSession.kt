@@ -122,6 +122,15 @@ object WoliFocusSessionController {
         return _current.value?.takeIf { it.isActive } ?: start(nowMillis)
     }
 
+    /** UI에서 집중 시작을 다시 눌렀을 때 ESP32 전송을 재시도할 수 있게 pending을 갱신한다. */
+    fun queueHardwareCommand(command: String) {
+        synchronized(lock) {
+            if (!isFocusHardwareCommand(command)) return
+            _pendingHardwareCommand.value = command
+            persistLocked()
+        }
+    }
+
     fun start(nowMillis: Long = System.currentTimeMillis()): WoliFocusSession {
         synchronized(lock) {
             val activeConfig = _config.value

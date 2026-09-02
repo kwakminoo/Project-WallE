@@ -113,6 +113,21 @@ class WoliFocusSessionControllerTest {
     }
 
     @Test
+    fun queueHardwareCommandRefreshesStartAfterDelivery() {
+        WoliFocusSessionController.resetForTest()
+        WoliFocusSessionController.start(nowMillis = 1_000L)
+        WoliFocusSessionController.markHardwareCommandDelivered(WoliDeviceProtocol.COMMAND_START)
+        assertNull(WoliFocusSessionController.pendingHardwareCommand.value)
+
+        WoliFocusSessionController.queueHardwareCommand(WoliDeviceProtocol.COMMAND_START)
+        assertEquals(
+            WoliDeviceProtocol.COMMAND_START,
+            WoliFocusSessionController.pendingHardwareCommand.value,
+        )
+        WoliFocusSessionController.resetForTest()
+    }
+
+    @Test
     fun handWarningEdgeGateCountsOnlyRearmedRisingEdges() {
         val gate = WoliHandWarningEdgeGate(initialHandNear = false)
         assertFalse(gate.onHandStatus(false))
